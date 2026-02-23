@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin Login | Taste Lounge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="shortcut icon"
+      href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+      type="image/x-icon"
+    />
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: whitesmoke;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
+
+      .login-box {
+        background: #1c1c1c;
+        background: bisque;
+        padding: 30px;
+        border-radius: 8px;
+        width: 100%;
+        max-width: 360px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      }
+
+      h2 {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      input {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 14px;
+        border-radius: 5px;
+        border: none;
+        outline: none;
+        font-size: 15px;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        background: #e53935;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .error {
+        color: #ff5252;
+        font-size: 14px;
+        text-align: center;
+        margin-top: 10px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-box">
+      <h2>Admin Login</h2>
+
+      <input type="email" id="email" placeholder="Admin email" />
+      <input type="password" id="password" placeholder="Password" />
+
+      <button id="loginBtn">Login</button>
+
+      <div id="error" class="error"></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <script src="admin-auth.js"></script>
+    <script src="admin-login.js"></script>
+  </body>
+</html>
+
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyAW3atuDYr7OeuT2b-Tn_ooD93ZfPqMA4g",
+    authDomain: "taste-lounge-3075.firebaseapp.com",
+    projectId: "taste-lounge-3075",
+  });
+
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  const emailEl = document.getElementById("email");
+  const passEl = document.getElementById("password");
+  const loginBtn = document.getElementById("loginBtn");
+  const errorEl = document.getElementById("error");
+
+  loginBtn.addEventListener("click", async () => {
+    errorEl.style.display = "none";
+    loginBtn.disabled = true;
+
+    const email = emailEl.value.trim();
+    const password = passEl.value;
+
+    if (!email || !password) {
+      showError("Enter email and password");
+      loginBtn.disabled = false;
+      return;
+    }
+
+    try {
+      const cred = await auth.signInWithEmailAndPassword(email, password);
+      const user = cred.user;
+
+      const adminSnap = await db.collection("admins").doc(user.uid).get();
+
+      if (!adminSnap.exists) {
+        await auth.signOut();
+        showError("You are not authorized as admin");
+        loginBtn.disabled = false;
+        return;
+      }
+
+      window.location.href = "admin-dashboard.html";
+    } catch (err) {
+      showError(err.message);
+      loginBtn.disabled = false;
+    }
+  });
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.style.display = "block";
+  }
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) return;
+
+    const adminSnap = await db.collection("admins").doc(user.uid).get();
+
+    if (adminSnap.exists) {
+      window.location.href = "admin-dashboard.html";
+    }
+  });
+</script>

@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin Orders | Taste Lounge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="shortcut icon"
+      href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+      type="image/x-icon"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: bisque;
+        color: #333;
+      }
+
+      header {
+        background: red;
+        color: #fff;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      header a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 14px;
+      }
+
+      main {
+        padding: 20px;
+      }
+
+      .order {
+        background: #fff;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      .order-header {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .order small {
+        color: #777;
+      }
+
+      .order-actions {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      select {
+        padding: 6px;
+      }
+
+      button {
+        padding: 6px 10px;
+        border: none;
+        border-radius: 4px;
+        background: #e53935;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .status {
+        font-weight: bold;
+        text-transform: capitalize;
+      }
+
+      @media (max-width: 768px) {
+        table,
+        thead,
+        tbody,
+        th,
+        td,
+        tr {
+          display: block;
+          width: 100%;
+        }
+
+        thead {
+          display: none;
+        }
+
+        tbody tr {
+          background: #fff;
+          border-radius: 8px;
+          margin-bottom: 16px;
+          padding: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        tbody td {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: 6px 0;
+          font-size: 13px;
+          border: none;
+        }
+
+        tbody td::before {
+          content: attr(data-label);
+          font-weight: 600;
+          color: #555;
+          margin-right: 10px;
+          flex-shrink: 0;
+        }
+
+        select,
+        button {
+          width: 100%;
+          font-size: 13px;
+        }
+
+        button {
+          margin-top: 6px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        tbody td {
+          font-size: 12px;
+        }
+
+        button {
+          font-size: 12px;
+          padding: 6px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Manage Orders</h1>
+      <a href="admin-dashboard.html">⬅️ Dashboard</a>
+    </header>
+
+    <main>
+      <table
+        border="1"
+        cellpadding="6"
+        cellspacing="0"
+        width="100%"
+        id="ordersTable"
+      >
+        <thead style="background: bisque">
+          <tr>
+            <th>Order ID</th>
+            <th>User Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Address</th>
+            <th>Date</th>
+            <th>Amount (₦)</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="ordersList">
+          <tr>
+            <td colspan="9">Loading orders…</td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <script src="admin-auth.js"></script>
+
+    <script>
+      firebase.initializeApp({
+        apiKey: "AIzaSyAW3atuDYr7OeuT2b-Tn_ooD93ZfPqMA4g",
+        authDomain: "taste-lounge-3075.firebaseapp.com",
+        projectId: "taste-lounge-3075",
+      });
+
+      const db = firebase.firestore();
+      const ordersList = document.getElementById("ordersList");
+      let usersMap = {};
+
+      async function loadUsers() {
+        try {
+          const usersSnap = await db.collection("users").get();
+          usersSnap.forEach((doc) => {
+            const data = doc.data();
+            usersMap[doc.id] = {
+              username: data.username || "—",
+              email: data.email || "—",
+            };
+          });
+        } catch (err) {
+          console.error("Failed to load users:", err);
+          ordersList.innerHTML = `<tr><td colspan="9">Failed to load users.</td></tr>`;
+        }
+      }
+
+      async function loadOrders() {
+        await loadUsers();
+
+        db.collection("orders")
+          .orderBy("createdAt", "desc")
+          .onSnapshot((snapshot) => {
+            if (snapshot.empty) {
+              ordersList.innerHTML = `<tr><td colspan="9">No orders found.</td></tr>`;
+              return;
+            }
+
+            ordersList.innerHTML = "";
+
+            snapshot.forEach((doc) => {
+              const o = doc.data();
+              const userInfo = usersMap[o.userId] || {
+                username: "—",
+                email: "—",
+              };
+              ordersList.innerHTML += renderOrderRow(
+                doc.id,
+                o,
+                userInfo.username,
+                userInfo.email,
+              );
+            });
+          });
+      }
+
+      function renderOrderRow(id, o, userName, userEmail) {
+        const date = o.createdAt?.toDate
+          ? o.createdAt.toDate().toLocaleString()
+          : "—";
+        const delivery = o.delivery || {};
+        const total = Number(o.pricing?.total) || 0;
+        const currentStatus = o.status?.current || "paid";
+
+        return `
+        <tr>
+          <td>${id.slice(0, 4).toUpperCase()}</td>
+          <td>${userName}</td>
+          <td>${userEmail}</td>
+          <td>${delivery.phone || "-"}</td>
+          <td>${delivery.address || "-"}</td>
+          <td>${date}</td>
+          <td>${total.toLocaleString()}</td>
+          <td>
+            <select id="status-${id}">
+              <option value="paid" ${currentStatus === "paid" ? "selected" : ""}>Paid</option>
+              <option value="processing" ${currentStatus === "processing" ? "selected" : ""}>Processing</option>
+              <option value="out_for_delivery" ${currentStatus === "out_for_delivery" ? "selected" : ""}>Out for delivery</option>
+              <option value="delivered" ${currentStatus === "delivered" ? "selected" : ""}>Delivered</option>
+            </select>
+          </td>
+          <td>
+            <button onclick="updateStatus('${id}')">Update</button>
+          </td>
+        </tr>
+      `;
+      }
+
+      async function updateStatus(orderId) {
+        const select = document.getElementById(`status-${orderId}`);
+        const newStatus = select.value;
+
+        try {
+          await db.collection("orders").doc(orderId).update({
+            "status.current": newStatus,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+
+          alert("Order status updated");
+        } catch (err) {
+          console.error(err);
+          alert("Failed to update order");
+        }
+      }
+
+      loadOrders();
+    </script>
+  </body>
+</html>

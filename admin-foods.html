@@ -1,0 +1,272 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Foods | Taste Lounge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon">
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f4f4; }
+    header { background: #111; color: #fff; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+    header a { color: #fff; text-decoration: none; font-size: 14px; }
+    main { padding: 20px; }
+    h2 { margin-top: 0; }
+
+    form { background: #fff; padding: 15px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    form input, form textarea, form button { display: block; width: 100%; margin-bottom: 10px; padding: 8px; }
+    form button { width: auto; background: #2e7d32; color: #fff; border: none; cursor: pointer; }
+
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    table th, table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+    table th { background: #eee; }
+    table img { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; }
+    .actions button { margin-right: 5px; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; }
+    .edit-btn { background: #1976d2; color: #fff; }
+    .delete-btn { background: #d32f2f; color: #fff; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Manage Foods</h1>
+  <a href="admin-dashboard.html">⬅️ Dashboard</a>
+</header>
+
+<main>
+  <h2>Add New Food</h2>
+  <form id="foodForm">
+    <input type="text" id="foodName" placeholder="Food Name" required>
+    <textarea id="foodDesc" placeholder="Description" rows="2" required></textarea>
+    <input type="number" id="foodPrice" placeholder="Price (₦)" required>
+    <input type="file" id="foodImage" accept="image
+foodForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const name = document.getElementById("foodName").value.trim();
+  const desc = document.getElementById("foodDesc").value.trim();
+  const price = Number(document.getElementById("foodPrice").value);
+  const imageFile = document.getElementById("foodImage").files[0];
+
+  console.log("📝 Form submitted:", { name, desc, price, hasImage: !!imageFile });
+
+  if (!name || !desc || !price || !imageFile) return alert("All fields are required");
+
+  const id = db.collection("foods").doc().id;
+  const storageRef = storage.ref(`foods/${id}-${imageFile.name}`);
+
+  try {
+    console.log("📤 Uploading image to Firebase Storage...");
+    console.log("File size:", (imageFile.size / 1024 / 1024).toFixed(2), "MB");
+    console.log("File type:", imageFile.type);
+    
+    const uploadTask = storageRef.put(imageFile);
+    
+    
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log("📊 Upload progress:", progress.toFixed(1) + "%");
+      },
+      (error) => {
+        console.error("❌ Upload progress error:", error.code, error.message);
+      }
+    );
+    
+    const snapshot = await uploadTask;
+    const imageUrl = await snapshot.ref.getDownloadURL();
+    console.log("✅ Image uploaded:", imageUrl);
+
+    console.log("💾 Saving food to Firestore...");
+    await db.collection("foods").doc(id).set({
+      name,
+      description: desc,
+      price,
+      imageUrl,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log("✅ Food saved successfully!");
+    foodForm.reset();
+    alert("Food added successfully!");
+  } catch (err) {
+    console.error("❌ Error adding food:", err);
+    console.error("Error code:", err.code);
+    console.error("Error message:", err.message);
+    alert(`Failed to add food: ${err.message}`);
+  }
+});
+
+
+console.log("🔄 Setting up Firestore listener for foods...");
+db.collection("foods")
+  .orderBy("createdAt", "desc")
+  .onSnapshot(
+    (snapshot) => {
+      console.log("📥 Snapshot received, docs count:", snapshot.size);
+      
+      if (snapshot.empty) {
+        console.warn("⚠️ No foods found in collection");
+        foodsList.innerHTML = `<tr><td colspan="5">No foods found.</td></tr>`;
+        return;
+      }
+
+      console.log("✅ Loading", snapshot.size, "foods...");
+      foodsList.innerHTML = "";
+      snapshot.forEach((doc) => {
+        const f = doc.data();
+        console.log("📄 Food loaded:", doc.id, f.name);
+        foodsList.innerHTML += renderFoodRow(doc.id, f);
+      });
+    },
+    (error) => {
+      console.error("❌ Firestore listener error:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      foodsList.innerHTML = `<tr><td colspan="5" style="color:red;">Error loading foods: ${error.message}</td></tr>`;
+    }
+  );
+
+function renderFoodRow(id, f) {
+  return `
+    <tr id="row-${id}">
+      <td><img src="${f.imageUrl}" alt="${f.name}"></td>
+      <td>${f.name}</td>
+      <td>${f.description}</td>
+      <td>${Number(f.price).toLocaleString()}</td>
+      <td class="actions">
+        <button class="edit-btn" onclick="editFood('${id}')">Edit</button>
+        <button class="delete-btn" onclick="deleteFood('${id}')">Delete</button>
+      </td>
+    </tr>
+  `;
+}
+
+
+async function deleteFood(id) {
+  if (!confirm("Delete this food?")) return;
+
+  try {
+    console.log("🗑️ Deleting food:", id);
+    const doc = await db.collection("foods").doc(id).get();
+    const imageUrl = doc.data().imageUrl;
+
+    if (imageUrl) {
+      console.log("🗑️ Deleting image from Storage...");
+      const ref = storage.refFromURL(imageUrl);
+      await ref.delete();
+      console.log("✅ Image deleted");
+    }
+
+    await db.collection("foods").doc(id).delete();
+    console.log("✅ Food deleted successfully!");
+    alert("Food deleted successfully!");
+  } catch (err) {
+    console.error("❌ Error deleting food:", err);
+    console.error("Error code:", err.code);
+    alert(`Failed to delete food: ${err.message}`);
+  }
+}
+
+
+async function editFood(id) {
+  console.log("✏️ Editing food:", id);
+  try {
+    const doc = await db.collection("foods").doc(id).get();
+    if (!doc.exists) return alert("Food not found");
+
+    const f = doc.data();
+
+    
+    const row = document.getElementById(`row-${id}`);
+    row.innerHTML = `
+      <td>
+        <img src="${f.imageUrl}" alt="${f.name}" style="width:60px;height:60px;object-fit:cover;">
+        <input type="file" id="newImage-${id}" accept="image/*">
+      </td>
+      <td><input type="text" id="newName-${id}" value="${f.name}"></td>
+      <td><textarea id="newDesc-${id}" rows="2">${f.description}</textarea></td>
+      <td><input type="number" id="newPrice-${id}" value="${f.price}"></td>
+      <td>
+        <button onclick="saveEdit('${id}')">Save</button>
+        <button onclick="cancelEdit('${id}')">Cancel</button>
+      </td>
+    `;
+  } catch (err) {
+    console.error("❌ Error editing food:", err);
+    alert(`Failed to edit food: ${err.message}`);
+  }
+}
+
+async function saveEdit(id) {
+  const name = document.getElementById(`newName-${id}`).value.trim();
+  const desc = document.getElementById(`newDesc-${id}`).value.trim();
+  const price = Number(document.getElementById(`newPrice-${id}`).value);
+  const newImageFile = document.getElementById(`newImage-${id}`).files[0];
+
+  console.log("💾 Saving edit for:", id, { name, desc, price, hasNewImage: !!newImageFile });
+
+  if (!name || !desc || !price) return alert("Name, description, and price are required");
+
+  try {
+    const updateData = { name, description: desc, price, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+
+    if (newImageFile) {
+      
+      console.log("🗑️ Deleting old image...");
+      const doc = await db.collection("foods").doc(id).get();
+      const oldImageUrl = doc.data().imageUrl;
+      if (oldImageUrl) {
+        const ref = storage.refFromURL(oldImageUrl);
+        await ref.delete();
+        console.log("✅ Old image deleted");
+      }
+
+      
+      console.log("📤 Uploading new image...");
+      console.log("File size:", (newImageFile.size / 1024 / 1024).toFixed(2), "MB");
+      
+      const uploadTask = storage.ref(`foods/${id}-${newImageFile.name}`).put(newImageFile);
+      
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log("📊 Upload progress:", progress.toFixed(1) + "%");
+        }
+      );
+      
+      const snapshot = await uploadTask;
+      const imageUrl = await snapshot.ref.getDownloadURL();
+      updateData.imageUrl = imageUrl;
+      console.log("✅ New image uploaded");
+    }
+
+    await db.collection("foods").doc(id).update(updateData);
+    console.log("✅ Food updated successfully!");
+    alert("Food updated!");
+  } catch (err) {
+    console.error("❌ Error updating food:", err);
+    console.error("Error code:", err.code);
+    alert(`Failed to update food: ${err.message}`);
+  }
+}
+
+async function cancelEdit(id) {
+  console.log("❌ Edit cancelled for:", id);
+  try {
+    const doc = await db.collection("foods").doc(id).get();
+    const f = doc.data();
+    document.getElementById(`row-${id}`).innerHTML = renderFoodRow(id, f);
+  } catch (err) {
+    console.error("❌ Error cancelling edit:", err);
+  }
+}
+
+</script>
+
+</body>
+</html>

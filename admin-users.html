@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin Users | Taste Lounge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="shortcut icon"
+      href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+      type="image/x-icon"
+    />
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background: bisque;
+      }
+      header {
+        background: red;
+        color: #fff;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      header a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 14px;
+      }
+      main {
+        padding: 20px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: bisque;
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+      table th,
+      table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid grey;
+      }
+      table th {
+        background: rgb(253, 218, 175);
+      }
+      .actions button {
+        margin-right: 5px;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .view-orders {
+        background: #1976d2;
+        color: #fff;
+      }
+
+      #ordersModal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        justify-content: center;
+        align-items: center;
+      }
+      #ordersModal .modal-content {
+        background: #fff;
+        padding: 20px;
+        border-radius: 6px;
+        max-height: 80%;
+        overflow-y: auto;
+        width: 600px;
+      }
+      #ordersModal .modal-content h3 {
+        margin-top: 0;
+      }
+      #ordersModal .close-btn {
+        float: right;
+        cursor: pointer;
+        font-size: 18px;
+        background: #d32f2f;
+        color: #fff;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 4px;
+      }
+      .order-item {
+        border-bottom: 1px solid #ddd;
+        padding: 10px 0;
+      }
+      .order-item:last-child {
+        border-bottom: none;
+      }
+      .button {
+        background-color: red;
+      }
+      .details {
+        background-color: #ff0000;
+        width: 25%;
+        padding: 10px;
+        border: 1px solid red;
+        border-radius: 8px;
+        color: white;
+      }
+      .detail:hover {
+        transform: scale(1.2);
+        background-color: rgb(207, 5, 5);
+      }
+
+      @media (max-width: 768px) {
+        header h1 {
+          font-size: 20px;
+        }
+
+        #ordersModal .modal-content {
+          width: 90%;
+          margin: 10px;
+        }
+
+        .details {
+          width: 100%;
+          margin-top: 10px;
+        }
+      }
+
+      @media (max-width: 600px) {
+        header {
+          flex-direction: column;
+          text-align: center;
+          gap: 10px;
+        }
+
+        table,
+        thead,
+        tbody,
+        th,
+        td,
+        tr {
+          display: block;
+        }
+
+        thead tr {
+          position: absolute;
+          top: -9999px;
+          left: -9999px;
+        }
+
+        tr {
+          margin-bottom: 15px;
+          border: 1px solid #ccc;
+          border-radius: 8px;
+          background: #fff;
+        }
+
+        td {
+          border: none;
+          border-bottom: 1px solid #eee;
+          position: relative;
+          padding-left: 50% !important;
+          text-align: right !important;
+        }
+
+        td:before {
+          position: absolute;
+          left: 10px;
+          width: 45%;
+          padding-right: 10px;
+          white-space: nowrap;
+          font-weight: bold;
+          text-align: left;
+        }
+
+        td:nth-of-type(1):before {
+          content: "Name";
+        }
+        td:nth-of-type(2):before {
+          content: "Email";
+        }
+        td:nth-of-type(3):before {
+          content: "Actions";
+        }
+
+        .view-orders {
+          width: 100%;
+          padding: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Users & Orders</h1>
+      <a href="admin-dashboard.html">⬅️ Dashboard</a>
+    </header>
+
+    <main>
+      <h2>All Users</h2>
+      <table id="usersTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersList">
+          <tr>
+            <td colspan="3">Loading users...</td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+
+    <div id="ordersModal">
+      <div class="modal-content">
+        <button class="close-btn" onclick="closeOrdersModal()">X</button>
+        <h3>User Orders</h3>
+        <div id="userOrdersList">Loading...</div>
+      </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <script>
+      firebase.initializeApp({
+        apiKey: "AIzaSyAW3atuDYr7OeuT2b-Tn_ooD93ZfPqMA4g",
+        authDomain: "taste-lounge-3075.firebaseapp.com",
+        projectId: "taste-lounge-3075",
+      });
+    </script>
+
+    <script src="admin-auth.js"></script>
+
+    <script>
+      const db = firebase.firestore();
+
+      const usersList = document.getElementById("usersList");
+      const ordersModal = document.getElementById("ordersModal");
+      const userOrdersList = document.getElementById("userOrdersList");
+
+      db.collection("users")
+        .orderBy("createdAt", "desc")
+        .onSnapshot((snapshot) => {
+          if (snapshot.empty) {
+            usersList.innerHTML = `<tr><td colspan="3">No users found.</td></tr>`;
+            return;
+          }
+
+          usersList.innerHTML = "";
+          snapshot.forEach((doc) => {
+            const u = doc.data();
+            usersList.innerHTML += `
+          <tr>
+            <td>${u.username || "-"}</td>
+            <td>${u.email || "-"}</td>
+            <td class="actions">
+              <button class="view-orders" onclick="viewOrders('${doc.id}')">View Orders</button>
+            </td>
+          </tr>
+        `;
+          });
+        });
+
+      async function viewOrders(userId) {
+        ordersModal.style.display = "flex";
+        userOrdersList.innerHTML = "Loading orders...";
+
+        const snapshot = await db
+          .collection("orders")
+          .where("userId", "==", userId)
+          .orderBy("createdAt", "desc")
+          .get();
+
+        if (snapshot.empty) {
+          userOrdersList.innerHTML = "<p>No orders found for this user.</p>";
+          return;
+        }
+
+        let html = "";
+        snapshot.forEach((doc) => {
+          const o = doc.data();
+          const date = o.createdAt?.toDate
+            ? o.createdAt.toDate().toLocaleString()
+            : "Unknown";
+          const amount = o.pricing?.total || 0;
+          const status = o.status?.current || "pending";
+
+          html += `
+        <div class="order-item">
+          <strong>Order #${doc.id.slice(0, 4).toUpperCase()}</strong> <br>
+          Date: ${date} <br>
+          Total: ₦${Number(amount).toLocaleString()} <br>
+          Status: ${status} <br>
+          <button class="details" onclick="viewOrderDetails('${doc.id}')">View Details</button>
+        </div>
+      `;
+        });
+
+        userOrdersList.innerHTML = html;
+      }
+
+      function closeOrdersModal() {
+        ordersModal.style.display = "none";
+        userOrdersList.innerHTML = "";
+      }
+
+      function viewOrderDetails(orderId) {
+        window.open(`order-details.html?id=${orderId}`, "_blank");
+      }
+    </script>
+  </body>
+</html>

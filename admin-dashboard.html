@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Admin Dashboard | Taste Lounge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="shortcut icon"
+      href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+      type="image/x-icon"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: bisque;
+        color: #333;
+      }
+
+      header {
+        background: #111;
+        background: red;
+        color: #fff;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      header h1 {
+        font-size: 18px;
+        margin: 0;
+      }
+
+      header button {
+        background: #e53935;
+        background: #fff;
+        border: none;
+        color: black;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      main {
+        padding: 20px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+      }
+
+      .card {
+        background: #fff;
+        padding: 20px;
+        border-radius: 6px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      }
+
+      .card h3 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        color: #777;
+      }
+
+      .card p {
+        font-size: 24px;
+        font-weight: bold;
+        margin: 0;
+      }
+
+      .nav {
+        margin-top: 30px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .nav a {
+        text-decoration: none;
+        background: red;
+        color: #fff;
+        padding: 12px 16px;
+        border-radius: 5px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Admin Dashboard</h1>
+      <button id="logoutBtn">Logout</button>
+    </header>
+
+    <main>
+      <section class="stats">
+        <div class="card">
+          <h3>Total Orders</h3>
+          <p id="totalOrders">—</p>
+        </div>
+
+        <div class="card">
+          <h3>Total Users</h3>
+          <p id="totalUsers">—</p>
+        </div>
+
+        <div class="card">
+          <h3>Total Revenue</h3>
+          <p id="totalRevenue">—</p>
+        </div>
+      </section>
+
+      <section class="nav">
+        <a href="admin-orders.html">Manage Orders</a>
+        <a href="admin-foods.html">Manage Foods</a>
+        <a href="admin-users.html">View Users</a>
+      </section>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <script>
+      firebase.initializeApp({
+        apiKey: "AIzaSyAW3atuDYr7OeuT2b-Tn_ooD93ZfPqMA4g",
+        authDomain: "taste-lounge-3075.firebaseapp.com",
+        projectId: "taste-lounge-3075",
+      });
+    </script>
+
+    <script src="admin-auth.js"></script>
+  </body>
+</html>
+<script>
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  const totalOrdersEl = document.getElementById("totalOrders");
+  const totalUsersEl = document.getElementById("totalUsers");
+  const totalRevenueEl = document.getElementById("totalRevenue");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  async function loadStats() {
+    try {
+      const ordersSnap = await db.collection("orders").get();
+      totalOrdersEl.textContent = ordersSnap.size;
+
+      let revenue = 0;
+      ordersSnap.forEach((doc) => {
+        const total = Number(doc.data()?.pricing?.total) || 0;
+        revenue += total;
+      });
+      totalRevenueEl.textContent = `₦${revenue.toLocaleString()}`;
+
+      const usersSnap = await db.collection("users").get();
+      totalUsersEl.textContent = usersSnap.size;
+    } catch (err) {
+      console.error("Dashboard error:", err);
+      alert("Failed to load dashboard data");
+    }
+  }
+
+  loadStats();
+
+  logoutBtn.onclick = async () => {
+    await auth.signOut();
+    window.location.href = "admin-login.html";
+  };
+</script>
