@@ -201,12 +201,12 @@
   <script src="admin-auth.js"></script>
   <script src="admin-shell.js"></script>
   <script src="store-hours.js"></script>
+  <script src="order-status.js"></script>
 
   <script>
     const $ = (id) => document.getElementById(id);
     const settingsRef = db.collection("settings").doc("store");
     const counts = (o) => o.payment?.status === "success" && o.status?.current !== "cancelled";
-    const STATUS_LABEL = { paid: "Paid", processing: "Processing", out_for_delivery: "Out for delivery", delivered: "Delivered", cancelled: "Cancelled" };
 
     adminReady.then(({ role, name }) => {
       $("hello").textContent = `Signed in as ${name} (${role === "admin" ? "admin" : "staff"})`;
@@ -235,7 +235,7 @@
         $("kAvg").textContent = paid.length ? naira(Math.round(sales / paid.length)) : "—";
       }, (err) => console.error("Today's orders:", err));
 
-      db.collection("orders").where("status.current", "in", ["paid", "processing", "out_for_delivery"]).onSnapshot((snap) => {
+      db.collection("orders").where("status.current", "in", ["paid", "processing", "ready", "out_for_delivery"]).onSnapshot((snap) => {
         $("kActive").textContent = snap.size;
       }, (err) => console.error("Active orders:", err));
     }
@@ -254,7 +254,7 @@
           const items = (o.items || []).reduce((n, i) => n + (Number(i.quantity ?? i.qty) || 1), 0);
           return `<li><a href="order-details.html?id=${encodeURIComponent(d.id)}"><b>#${esc(d.id.slice(0, 4).toUpperCase())}</b> · ${esc(o.delivery?.name || "Customer")}
               <small>${esc(when)} · ${items} item${items === 1 ? "" : "s"}</small></a>
-            <span style="text-align:right"><b>${naira(o.pricing?.total)}</b><br><span class="pill st-${esc(st)}">${esc(STATUS_LABEL[st] || st)}</span></span></li>`;
+            <span style="text-align:right"><b>${naira(o.pricing?.total)}</b><br><span class="pill st-${esc(st)}">${esc(tlStatusLabel(o, st, true))}${tlIsPickup(o) ? " · 🛍️" : ""}</span></span></li>`;
         }).join("");
       }, (err) => console.error("Latest orders:", err));
     }

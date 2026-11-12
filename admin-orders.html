@@ -131,12 +131,20 @@
         <label>Status
           <select id="statusFilter">
             <option value="">All statuses</option>
-            <option value="active">In progress (not delivered)</option>
-            <option value="paid">Paid</option>
+            <option value="active">In progress (not finished)</option>
+            <option value="paid">New order</option>
             <option value="processing">Processing</option>
+            <option value="ready">Ready for pickup</option>
             <option value="out_for_delivery">Out for delivery</option>
-            <option value="delivered">Delivered</option>
+            <option value="delivered">Delivered / picked up</option>
             <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <label>Type
+          <select id="typeFilter">
+            <option value="">Delivery & pickup</option>
+            <option value="delivery">Delivery only</option>
+            <option value="pickup">Pickup only</option>
           </select>
         </label>
         <label>From <input type="date" id="fromDate"></label>
@@ -178,17 +186,14 @@
   <script src="admin-firebase.js"></script>
   <script src="admin-auth.js"></script>
   <script src="admin-shell.js"></script>
+  <script src="order-status.js"></script>
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const STATUSES = [
-      ["paid", "Paid"],
-      ["processing", "Processing"],
-      ["out_for_delivery", "Out for delivery"],
-      ["delivered", "Delivered"],
-      ["cancelled", "Cancelled"],
-    ];
-    const STATUS_LABEL = Object.fromEntries(STATUSES);
+    // Statuses depend on the order: pickup orders get "Ready for pickup", deliveries
+    // "Out for delivery" (see order-status.js). Customers see each change live.
+    const statusText = (o) => tlStatusLabel(o, null, true);
+    const typeText = (o) => (tlIsPickup(o) ? "Pickup" : o.deliveryType === "express" ? "Express" : "Standard");
     const RECENT_LIMIT = 300;
 
     let role = "staff";
@@ -239,10 +244,12 @@
     function filtered() {
       const term = $("search").value.trim().toLowerCase();
       const status = $("statusFilter").value;
+      const type = $("typeFilter").value;
       return orders.filter((o) => {
         const st = o.status?.current || "paid";
         if (status === "active" && (st === "delivered" || st === "cancelled")) return false;
         if (status && status !== "active" && st !== status) return false;
+        if (type && (type === "pickup") !== tlIsPickup(o)) return false;
         if (!term) return true;
         const hay = [shortId(o.id), o.id, o.delivery?.name, o.delivery?.phone, o.delivery?.address, users[o.userId]?.email,
           o.promo?.code, ...(o.items || []).map((i) => i.name)].join(" ").toLowerCase();
@@ -268,24 +275,27 @@
         const d = o.delivery || {};
         const email = users[o.userId]?.email;
         const items = (o.items || []).map((i) => `${Number(i.quantity ?? i.qty) || 1}× ${i.name}`).join("\n");
+        const pickup = tlIsPickup(o);
+        const wa = tlWhatsAppLink(d.phone, tlWhatsAppText(o, o.id));
         return `
           <tr class="${fresh.has(o.id) ? "is-new" : ""}">
-            <td data-label="Order"><b>#${esc(shortId(o.id))}</b>${o.deliveryType === "express" ? ' <span class="pill st-paid">⚡ Express</span>' : ""}
+            <td data-label="Order"><b>#${esc(shortId(o.id))}</b>${pickup ? ' <span class="pill st-ready">🛍️ Pickup</span>' : o.deliveryType === "express" ? ' <span class="pill st-paid">⚡ Express</span>' : ""}
               <small>${when ? esc(when.toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })) : "—"}</small></td>
             <td data-label="Customer">${esc(d.name || users[o.userId]?.username || "—")}
               <small>${esc(d.phone || "")}${email ? " · " + esc(email) : ""}</small></td>
-            <td data-label="Address"><div class="addr" title="${esc(d.address || "")}">${esc(d.address || "—")}</div></td>
+            <td data-label="Address">${pickup ? "<b>🛍️ Customer picks up</b>" : `<div class="addr" title="${esc(d.address || "")}">${esc(d.address || "—")}</div>`}</td>
             <td data-label="Items" title="${esc(items)}">${itemCount(o)}</td>
             <td data-label="Total"><b>${naira(o.pricing?.total)}</b>${o.promo?.code ? `<small>🏷️ ${esc(o.promo.code)}</small>` : ""}</td>
             <td data-label="Status">
               <select class="status-select st-${esc(st)}" data-status="${esc(o.id)}" aria-label="Status of order #${esc(shortId(o.id))}">
-                ${STATUSES.map(([v, l]) => `<option value="${v}" ${v === st ? "selected" : ""}>${l}</option>`).join("")}
+                ${tlStatusOptions(o).map(([v, l]) => `<option value="${esc(v)}" ${v === st ? "selected" : ""}>${esc(l)}</option>`).join("")}
               </select>
             </td>
             <td data-label="">
               <span class="actions">
                 <a class="btn btn-secondary btn-sm" href="order-details.html?id=${encodeURIComponent(o.id)}">View</a>
                 <a class="btn btn-secondary btn-sm" href="order-details.html?id=${encodeURIComponent(o.id)}&ticket=1" target="_blank" rel="noopener" title="Print kitchen ticket">🖨 Ticket</a>
+                ${wa ? `<a class="btn btn-secondary btn-sm" href="${esc(wa)}" target="_blank" rel="noopener" title="Message the customer on WhatsApp about this status" aria-label="WhatsApp the customer about order #${esc(shortId(o.id))}">💬</a>` : ""}
               </span>
             </td>
           </tr>`;
@@ -306,8 +316,8 @@
       }
       select.disabled = true;
       try {
-        await db.collection("orders").doc(id).update({ "status.current": next, updatedAt: serverTime() });
-        toast(`Order #${shortId(id)} → ${STATUS_LABEL[next]}`);
+        await db.collection("orders").doc(id).update(tlStatusUpdate(next, serverTime()));
+        toast(`Order #${shortId(id)} → ${tlStatusLabel(order, next, true)}. The customer sees it now.`);
       } catch (err) {
         select.value = before;
         toast("Couldn't update the order: " + err.message, "error");
@@ -316,11 +326,12 @@
       }
     });
 
-    ["search", "statusFilter"].forEach((id) => $(id).addEventListener("input", () => render()));
+    ["search", "statusFilter", "typeFilter"].forEach((id) => $(id).addEventListener("input", () => render()));
     ["fromDate", "toDate"].forEach((id) => $(id).addEventListener("change", listen));
     $("clearBtn").onclick = () => {
       $("search").value = "";
       $("statusFilter").value = "";
+      $("typeFilter").value = "";
       const hadDates = $("fromDate").value || $("toDate").value;
       $("fromDate").value = "";
       $("toDate").value = "";
@@ -341,8 +352,8 @@
           "Customer": del.name || users[o.userId]?.username || "",
           ...(role === "admin" ? { "Email": users[o.userId]?.email || "" } : {}),
           "Phone": del.phone || "",
-          "Address": del.address || "",
-          "Delivery": o.deliveryType === "express" ? "Express" : "Standard",
+          "Address": tlIsPickup(o) ? "(pickup)" : del.address || "",
+          "Delivery": typeText(o),
           "Items": (o.items || []).map((i) => `${Number(i.quantity ?? i.qty) || 1}x ${i.name}`).join("; "),
           "Item count": itemCount(o),
           "Subtotal (₦)": Number(p.subtotal) || 0,
@@ -354,7 +365,7 @@
           "Total (₦)": Number(p.total) || 0,
           "Payment ref": o.payment?.reference || "",
           "Payment": o.payment?.status || "",
-          "Status": STATUS_LABEL[o.status?.current || "paid"] || o.status?.current || "",
+          "Status": statusText(o),
           "Order ID": o.id,
         };
       });
@@ -371,7 +382,7 @@
           "Qty": qty,
           "Unit price (₦)": price,
           "Line total (₦)": price * qty,
-          "Status": STATUS_LABEL[o.status?.current || "paid"] || "",
+          "Status": statusText(o),
         });
       }));
       const wb = XLSX.utils.book_new();

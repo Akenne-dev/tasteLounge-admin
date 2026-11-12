@@ -728,6 +728,7 @@ table.data img.thumb {
 
 .st-paid { background: #fff3e0; color: #e65100; border-color: #ffcc80; }
 .st-processing { background: #e3f2fd; color: #1565c0; border-color: #90caf9; }
+.st-ready { background: #fff8e1; color: #8d6e00; border-color: #ffe082; }
 .st-out_for_delivery { background: #ede7f6; color: #5e35b1; border-color: #b39ddb; }
 .st-delivered { background: var(--green-soft); color: var(--green); border-color: #a5d6a7; }
 .st-cancelled { background: #eee; color: #616161; border-color: #ccc; }

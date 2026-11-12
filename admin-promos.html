@@ -70,6 +70,7 @@
         <div>
           <h2 id="formTitle">New promo code</h2>
           <p class="sub">Customers type the code at checkout. Discounts apply to the food (not delivery), and can never make an order free.</p>
+          <p class="sub"><b>How customers get a code:</b> tick <b>Show in the app</b> and it appears on the menu and at checkout for everyone to tap. Leave it unticked for a secret code you share yourself (Instagram, WhatsApp status, flyers, a loyal customer).</p>
         </div>
       </div>
       <form id="promoForm" novalidate>
@@ -122,6 +123,7 @@
         <div class="checks" style="margin-top:14px">
           <label class="check-item on"><input type="checkbox" id="active" checked> Active (customers can use it)</label>
           <label class="check-item"><input type="checkbox" id="oncePerCustomer"> One use per customer</label>
+          <label class="check-item"><input type="checkbox" id="public"> 📣 Show in the app (menu &amp; checkout)</label>
         </div>
         <div class="preview" id="preview"></div>
         <div class="form-actions">
@@ -218,6 +220,7 @@
         description: $("description").value.trim(),
         active: $("active").checked,
         oncePerCustomer: $("oncePerCustomer").checked,
+        public: $("public").checked,
       };
     }
 
@@ -226,7 +229,8 @@
       const code = p.code || "CODE";
       $("preview").textContent = `Customers see: ✓ ${code} — ${p.description || offerText(p)}` +
         (conditionsText(p) !== "None" ? `  ·  ${conditionsText(p)}` : "") +
-        (p.usageLimit ? `  ·  first ${p.usageLimit} uses` : "");
+        (p.usageLimit ? `  ·  first ${p.usageLimit} uses` : "") +
+        (p.public ? "  ·  📣 shown on the menu and at checkout" : "  ·  🤫 secret: only works if you share it");
     }
     $("promoForm").addEventListener("input", updatePreview);
     $("promoForm").addEventListener("change", (e) => {
@@ -272,6 +276,7 @@
       $("description").value = p.description || "";
       $("active").checked = p.active !== false;
       $("oncePerCustomer").checked = !!p.oncePerCustomer;
+      $("public").checked = p.public === true;
       document.querySelectorAll("#promoForm .check-item").forEach((c) => c.classList.toggle("on", c.querySelector("input").checked));
       $("formTitle").textContent = "Edit promo code";
       $("saveBtn").textContent = "Save changes";
@@ -323,7 +328,8 @@
         const dates = [p.startsAt ? "From " + niceDate(p.startsAt) : "", p.expiresAt ? "Until " + niceDate(p.expiresAt) : ""].filter(Boolean).join("<br>") || "No end date";
         return `<tr>
           <td><span class="code">${esc(p.code)}</span><br><span class="badge ${cls}">${state}</span></td>
-          <td>${esc(offerText(p))}${p.description ? `<small>${esc(p.description)}</small>` : ""}</td>
+          <td>${esc(offerText(p))}${p.description ? `<small>${esc(p.description)}</small>` : ""}
+            <small>${p.public ? "📣 Shown in the app" : "🤫 Secret (share it yourself)"}</small></td>
           <td>${esc(conditionsText(p))}</td>
           <td>${used.toLocaleString()}${limit ? ` / ${limit.toLocaleString()}<div class="usage-bar"><span style="width:${Math.min(100, (used / limit) * 100)}%"></span></div>` : ""}</td>
           <td><small style="color:inherit">${dates}</small></td>

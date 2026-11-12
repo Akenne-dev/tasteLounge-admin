@@ -66,6 +66,32 @@
       border-radius: 4px;
     }
 
+    .check-result {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .check-result:empty {
+      display: none;
+    }
+
+    .check-result.ok {
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .check-result.bad {
+      background: #fdecea;
+      color: #b71c1c;
+    }
+
+    #pickupFields[aria-disabled="true"] {
+      opacity: .5;
+    }
+
     #hoursTable[aria-disabled="true"] {
       opacity: .45;
       pointer-events: none;
@@ -128,6 +154,32 @@
             <label for="deliveryTime">Delivery time</label>
             <input type="text" id="deliveryTime" maxlength="30" placeholder="e.g. 25–40 min">
             <div class="hint">Shown on each dish page: "Hot at your door in …"</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pickup -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Pickup</h2>
+            <p class="sub">Let customers collect their order themselves, with no delivery fee. Mark pickup orders <b>Ready for pickup</b> in Orders and the customer's app tells them to come.</p>
+          </div>
+        </div>
+        <div class="switch-row" style="margin-bottom:14px">
+          <label class="switch"><input type="checkbox" id="pickupOn"><span></span></label>
+          <label for="pickupOn"><b>Offer pickup at checkout</b>
+            <div class="hint">Customers choose Delivery or Pickup.</div></label>
+        </div>
+        <div class="grid grid-2" id="pickupFields">
+          <div class="field">
+            <label for="pickupAddress">Pickup address <span class="req">*</span></label>
+            <textarea id="pickupAddress" rows="2" maxlength="200" placeholder="e.g. 12 Admiralty Way, Lekki Phase 1, Lagos"></textarea>
+            <div class="hint">Shown at checkout and on the customer's receipt.</div>
+          </div>
+          <div class="field">
+            <label for="pickupNote">Note for customers (optional)</label>
+            <textarea id="pickupNote" rows="2" maxlength="160" placeholder="e.g. Usually ready in 20 minutes. Show your order number at the counter."></textarea>
           </div>
         </div>
       </section>
@@ -240,21 +292,25 @@
         </div>
         <ol class="steps">
           <li>Create a free account at <a class="inline-link" href="https://cloudinary.com/users/register_free" target="_blank" rel="noopener">cloudinary.com</a>.</li>
-          <li>On the Cloudinary dashboard, copy your <b>Cloud name</b>.</li>
+          <li>Copy your <b>Cloud name</b>. It's a code Cloudinary made for you, like <code>dk3x9abcd</code>, <b>not</b> your business name. Find it on the Cloudinary <b>Dashboard</b>, or at the top of <b>Settings → API Keys</b>.</li>
           <li>Go to <b>Settings → Upload → Upload presets → Add upload preset</b>, set <b>Signing mode</b> to <code>Unsigned</code>, save, and copy the preset name.</li>
-          <li>Paste both below and press Save.</li>
+          <li>Paste both below, press <b>Test</b>, then <b>Save settings</b>.</li>
         </ol>
         <div class="grid grid-2">
           <div class="field">
             <label for="cloudName">Cloud name</label>
-            <input type="text" id="cloudName" maxlength="60" placeholder="e.g. tastelounge" autocomplete="off">
+            <input type="text" id="cloudName" maxlength="60" placeholder="e.g. dk3x9abcd" autocomplete="off" spellcheck="false">
           </div>
           <div class="field">
             <label for="uploadPreset">Upload preset (unsigned)</label>
-            <input type="text" id="uploadPreset" maxlength="60" placeholder="e.g. tl_unsigned" autocomplete="off">
+            <input type="text" id="uploadPreset" maxlength="60" placeholder="e.g. a1b2c3d4" autocomplete="off" spellcheck="false">
           </div>
         </div>
-        <div class="hint">Only admins can see these details.</div>
+        <div class="actions" style="margin-top:4px">
+          <button type="button" class="btn btn-secondary btn-sm" id="testCloudinary">Test these details</button>
+          <span class="hint" style="align-self:center">Only admins can see these details.</span>
+        </div>
+        <div class="check-result" id="cloudinaryResult" role="status"></div>
       </section>
 
       <section class="card">
@@ -281,6 +337,7 @@
   <script src="admin-firebase.js"></script>
   <script src="admin-auth.js"></script>
   <script src="admin-shell.js"></script>
+  <script src="admin-upload.js"></script>
 
   <script>
     const $ = (id) => document.getElementById(id);
@@ -343,6 +400,38 @@
         row.querySelectorAll('input[type="time"]').forEach((i) => (i.disabled = !mon.querySelector(".d-open").checked));
       });
       toast("Copied — remember to save");
+    };
+
+    /* ---------- pickup ---------- */
+    function syncPickupState() {
+      $("pickupFields").setAttribute("aria-disabled", String(!$("pickupOn").checked));
+    }
+    $("pickupOn").addEventListener("change", syncPickupState);
+
+    /* ---------- Cloudinary check ---------- */
+    let loadedMedia = { cloudName: "", uploadPreset: "" };
+
+    async function checkCloudinary() {
+      const cloudName = $("cloudName").value.trim();
+      const uploadPreset = $("uploadPreset").value.trim();
+      const out = $("cloudinaryResult");
+      if (!cloudName || !uploadPreset) {
+        out.className = "check-result bad";
+        out.textContent = "Fill in both the cloud name and the upload preset first.";
+        return false;
+      }
+      out.className = "check-result";
+      out.textContent = "Checking with Cloudinary…";
+      const result = await tlCheckCloudinary(cloudName, uploadPreset);
+      out.className = "check-result " + (result.ok ? "ok" : "bad");
+      out.textContent = result.message;
+      return result.ok;
+    }
+
+    $("testCloudinary").onclick = async () => {
+      $("testCloudinary").disabled = true;
+      await checkCloudinary();
+      $("testCloudinary").disabled = false;
     };
 
     $("hoursOn").addEventListener("change", syncHoursState);
@@ -436,6 +525,12 @@
         $("freeDeliveryOver").value = s.freeDeliveryOver ?? "";
         $("deliveryTime").value = s.deliveryTime || "";
 
+        const pk = s.pickup || {};
+        $("pickupOn").checked = pk.enabled === true;
+        $("pickupAddress").value = pk.address || "";
+        $("pickupNote").value = pk.note || "";
+        syncPickupState();
+
         const hasHours = s.hours && Object.keys(s.hours).length > 0;
         $("hoursOn").checked = !!hasHours;
         renderHours(s.hours);
@@ -458,6 +553,8 @@
         const m = mediaSnap && mediaSnap.exists ? mediaSnap.data() : {};
         $("cloudName").value = m.cloudName || "";
         $("uploadPreset").value = m.uploadPreset || "";
+        loadedMedia = { cloudName: m.cloudName || "", uploadPreset: m.uploadPreset || "" };
+        if (m.cloudName && m.uploadPreset) checkCloudinary(); // show straight away if the saved details don't work
 
         $("dealsList").innerHTML = "";
         (Array.isArray(s.deals) ? s.deals : []).forEach((d) => addDealRow(d));
@@ -488,6 +585,11 @@
         expressFee: Number($("expressFee").value) || 0,
         freeDeliveryOver: Number($("freeDeliveryOver").value) || 0,
         deliveryTime: $("deliveryTime").value.trim(),
+        pickup: {
+          enabled: $("pickupOn").checked,
+          address: $("pickupAddress").value.trim(),
+          note: $("pickupNote").value.trim(),
+        },
         hours: $("hoursOn").checked ? readHours() : null,
         timezone: $("timezone").value.trim() || "Africa/Lagos",
         loyalty: {
@@ -502,6 +604,10 @@
       };
       if ([data.deliveryFee, data.expressFee, data.freeDeliveryOver].some((n) => n < 0)) {
         return toast("Amounts can't be negative", "error");
+      }
+      if (data.pickup.enabled && !data.pickup.address) {
+        $("pickupAddress").focus();
+        return toast("Add the pickup address so customers know where to collect their order", "error");
       }
       if (!validTimezone(data.timezone)) return toast(`"${data.timezone}" isn't a time zone — try Africa/Lagos`, "error");
       if (data.hours) {
@@ -528,8 +634,16 @@
           mediaRef.set({ cloudName, uploadPreset, updatedAt: serverTime() }, { merge: true }),
         ]);
         loadedPause = { paused, message: pauseMessage };
-        toast("Store settings saved — the app uses them right away");
         $("lastSaved").textContent = "Last saved " + new Date().toLocaleString();
+        // new upload details: make sure Cloudinary accepts them
+        const mediaChanged = cloudName !== loadedMedia.cloudName || uploadPreset !== loadedMedia.uploadPreset;
+        loadedMedia = { cloudName, uploadPreset };
+        if (mediaChanged && cloudName && uploadPreset && !(await checkCloudinary())) {
+          toast("Settings saved, but Cloudinary doesn't accept the photo-upload details. See Photo uploads below.", "error");
+          $("cloudinaryResult").scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          toast("Store settings saved — the app uses them right away");
+        }
       } catch (err) {
         toast("Couldn't save: " + err.message, "error");
       } finally {

@@ -74,6 +74,17 @@
       .status-out_for_delivery { background: #7e57c2; }
       .status-delivered { background: #4caf50; }
       .status-cancelled { background: #9e9e9e; }
+      .status-ready { background: #f9a825; }
+      /* status changer: customers see every change live in the app */
+      .status-box { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px; margin: 10px 0;
+        border-radius: 12px; background: #faf6f0; border: 1px solid #eee3d3; }
+      .status-box label { font-weight: 700; }
+      .status-box select { font: 600 15px Arial, sans-serif; padding: 8px 10px; border-radius: 10px; border: 1.5px solid #ccc; background: #fff; }
+      .status-box select:focus-visible, .wa-btn:focus-visible { outline: 3px solid #FBC02D; outline-offset: 2px; }
+      .wa-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: #1e8e3e;
+        color: #fff; text-decoration: none; font: 700 14px Arial, sans-serif; }
+      .status-note { flex-basis: 100%; margin: 0; font-size: 13px; color: #555; }
+      .status-note.error { color: #c62828; }
       .item-meta { font-size: 13px; color: #666; margin: -2px 0 6px; }
       .discount { color: #2e7d32; }
       .btn-dark { background: #1f1f1f; color: #fff; }
@@ -160,6 +171,7 @@
 
     <script src="admin-auth.js"></script>
     <script src="admin-shell.js"></script>
+    <script src="order-status.js"></script>
 
     <script>
       const db = firebase.firestore();
@@ -175,10 +187,12 @@
         adminReady.then(loadOrder);
       }
 
-      async function loadOrder() {
-        try {
-          const snap = await db.collection("orders").doc(orderId).get();
+      // Live, so a status change made here or on the Orders page shows straight away
+      let printed = false;
+      let statusNote = { text: "", error: false };
 
+      function loadOrder() {
+        db.collection("orders").doc(orderId).onSnapshot((snap) => {
           if (!snap.exists) {
             receiptEl.innerHTML = "<p>Order not found.</p>";
             return;
@@ -193,20 +207,42 @@
 
           renderReceipt(order);
           renderTicket(order);
-          if (printTicketNow) setTimeout(() => window.print(), 300);
-        } catch (err) {
+          if (printTicketNow && !printed) {
+            printed = true;
+            setTimeout(() => window.print(), 300);
+          }
+        }, (err) => {
           console.error("Error loading order:", err);
           receiptEl.innerHTML = "<p>Error loading order.</p>";
+        });
+      }
+
+      // Status changes save straight away (admins and staff)
+      document.addEventListener("change", async (e) => {
+        if (e.target.id !== "statusSelect") return;
+        const select = e.target;
+        const o = window.currentOrder;
+        const before = tlStatusOf(o);
+        const next = select.value;
+        if (next === "cancelled" && !confirm(`Cancel order #${window.currentOrderShortId}? The customer will see it as cancelled. (Refunds are done in your Paystack dashboard.)`)) {
+          select.value = before;
+          return;
         }
-      }
-
-      const STATUS_LABEL = { paid: "Paid", processing: "Processing", out_for_delivery: "Out for delivery", delivered: "Delivered", cancelled: "Cancelled" };
-
-      function getStatusClass(status) {
-        const s = (status || "pending").toLowerCase();
-        if (["confirmed", "processing", "out_for_delivery", "delivered", "cancelled"].includes(s)) return "status-" + s;
-        return "status-pending";
-      }
+        select.disabled = true;
+        try {
+          await db.collection("orders").doc(o.id).update(tlStatusUpdate(next, firebase.firestore.FieldValue.serverTimestamp()));
+          statusNote = { text: `✓ Saved. The customer now sees "${tlStatusLabel(o, next)}" in the app.`, error: false };
+        } catch (err) {
+          statusNote = { text: "Couldn't change the status: " + err.message, error: true };
+          select.value = before;
+        }
+        select.disabled = false;
+        const note = document.getElementById("statusNote");
+        if (note) {
+          note.textContent = statusNote.text;
+          note.className = "status-note" + (statusNote.error ? " error" : "");
+        }
+      });
 
       // Kitchen ticket: what to cook, no prices. Printed from this page or "🖨 Ticket" on the orders list.
       function renderTicket(o) {
@@ -218,7 +254,7 @@
           <div class="c">KITCHEN TICKET</div>
           <div class="big">#${escapeHtml(o.id.slice(0, 4).toUpperCase())}</div>
           <div class="row2"><span>${escapeHtml(when.toLocaleDateString("en-GB"))}</span><span>${escapeHtml(when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }))}</span></div>
-          <div class="c"><b>${o.deliveryType === "express" ? "*** EXPRESS DELIVERY ***" : "Standard delivery"}</b></div>
+          <div class="c"><b>${tlIsPickup(o) ? "*** PICKUP ***" : o.deliveryType === "express" ? "*** EXPRESS DELIVERY ***" : "Standard delivery"}</b></div>
           <hr>
           ${(o.items || []).map((i) => {
             const qty = Number(i.qty ?? i.quantity) || 1;
@@ -233,7 +269,7 @@
           <div class="row2"><span>Payment</span><b>${o.payment?.status === "success" ? "PAID" : "NOT PAID"}</b></div>
           <hr>
           <div>${escapeHtml(d.name || "")}${d.phone ? " · " + escapeHtml(d.phone) : ""}</div>
-          <div>${escapeHtml(d.address || "")}</div>`;
+          <div>${tlIsPickup(o) ? "CUSTOMER PICKS UP" : escapeHtml(d.address || "")}</div>`;
       }
 
       function printTicket() {
@@ -246,7 +282,9 @@
           : "";
 
         const delivery = o.delivery || o.deliveryInfo || {};
-        const status = o.status?.current || "pending";
+        const status = tlStatusOf(o);
+        const pickup = tlIsPickup(o);
+        const wa = tlWhatsAppLink(delivery.phone, tlWhatsAppText(o, o.id));
 
         const itemsHtml = (o.items || [])
           .map((i) => {
@@ -276,15 +314,24 @@
 
           <p><strong>Order:</strong> #${escapeHtml(o.id ? o.id.slice(0, 4).toUpperCase() : "-")}</p>
           <p><strong>Date:</strong> ${escapeHtml(orderDate)}</p>
-          <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(status)}">${escapeHtml(STATUS_LABEL[status] || status)}</span></p>
-          <p><strong>Delivery:</strong> ${o.deliveryType === "express" ? "⚡ Express" : "Standard"}</p>
+          <div class="status-box">
+            <label for="statusSelect">Status</label>
+            <select id="statusSelect">
+              ${tlStatusOptions(o).map(([v, l]) => `<option value="${escapeHtml(v)}" ${v === status ? "selected" : ""}>${escapeHtml(l)}</option>`).join("")}
+            </select>
+            ${wa ? `<a class="wa-btn" href="${escapeHtml(wa)}" target="_blank" rel="noopener" title="Opens WhatsApp with a message about this status">💬 WhatsApp the customer</a>` : ""}
+            <p class="status-note${statusNote.error ? " error" : ""}" id="statusNote" role="status">${escapeHtml(statusNote.text || "The customer sees each change live in the app.")}</p>
+          </div>
+          <p><strong>Type:</strong> ${pickup ? "🛍️ Pickup (customer collects)" : o.deliveryType === "express" ? "⚡ Express delivery" : "Standard delivery"}</p>
           ${o.payment?.reference ? `<p><strong>Payment ref:</strong> ${escapeHtml(o.payment.reference)}</p>` : ""}
 
           <hr>
 
           <p><strong>Name:</strong> ${escapeHtml(delivery.name || "-")}</p>
           <p><strong>Phone:</strong> ${escapeHtml(delivery.phone || "-")}</p>
-          <p><strong>Address:</strong> ${escapeHtml(delivery.address || "-")}</p>
+          ${pickup
+            ? `<p><strong>Pickup:</strong> the customer collects from ${escapeHtml(o.pickup?.address || "the shop")}</p>`
+            : `<p><strong>Address:</strong> ${escapeHtml(delivery.address || "-")}</p>`}
 
           <hr>
 
@@ -304,7 +351,7 @@
           </div>` : ""}
 
           <div class="row">
-            <span>Delivery</span>
+            <span>${pickup ? "Pickup" : "Delivery"}</span>
             <span>&#8358;${Number(o.pricing?.delivery || 0).toLocaleString()}</span>
           </div>
 
@@ -365,8 +412,7 @@
         pdf.text("Date: " + (window.currentOrderDate || ""), 10, y);
 
         y += 6;
-        const status = window.currentOrder.status?.current || "pending";
-        pdf.text("Status: " + status, 10, y);
+        pdf.text("Status: " + tlStatusLabel(window.currentOrder, null, true), 10, y);
 
         y += 10;
         pdf.setDrawColor("#000");
@@ -378,7 +424,9 @@
         y += 6;
         pdf.text("Phone: " + (d.phone || "-"), 10, y);
         y += 6;
-        pdf.text("Address: " + (d.address || "-"), 10, y);
+        pdf.text(tlIsPickup(window.currentOrder)
+          ? "Pickup from: " + (window.currentOrder.pickup?.address || "the shop")
+          : "Address: " + (d.address || "-"), 10, y);
 
         y += 10;
         pdf.setDrawColor("#000");
@@ -410,7 +458,7 @@
         pdf.text("NGN " + formatMoney(p.subtotal), 190, y, { align: "right" });
 
         y += 6;
-        pdf.text("Delivery", 10, y);
+        pdf.text(tlIsPickup(window.currentOrder) ? "Pickup" : "Delivery", 10, y);
         pdf.text("NGN " + formatMoney(p.delivery), 190, y, { align: "right" });
 
         if (Number(p.discount) > 0) {

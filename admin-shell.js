@@ -163,7 +163,7 @@
     card.setAttribute("role", "alert");
     card.innerHTML = `
       <h4><span>🔔 New order #${escapeHtml(short)}</span><span>${escapeHtml(total)}</span></h4>
-      <p>${escapeHtml(who)} · ${items} item${items === 1 ? "" : "s"}${o.deliveryType === "express" ? " · ⚡ Express" : ""}</p>
+      <p>${escapeHtml(who)} · ${items} item${items === 1 ? "" : "s"}${o.deliveryType === "pickup" ? " · 🛍️ Pickup" : o.deliveryType === "express" ? " · ⚡ Express" : ""}</p>
       <div class="row"><a href="order-details.html?id=${encodeURIComponent(id)}">View order</a><button type="button">Dismiss</button></div>`;
     card.querySelector("button").onclick = () => card.remove();
     alertsBox.prepend(card);

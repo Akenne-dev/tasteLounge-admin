@@ -9,6 +9,39 @@
 
   const say = (msg, type) => (typeof toast === "function" ? toast(msg, type) : alert(msg));
 
+  // Cloudinary's error messages, in plain words
+  function explain(message, cfg) {
+    const m = String(message || "").trim();
+    if (/unknown api key|invalid cloud_name|cloud_name.*disabled/i.test(m)) {
+      return `Cloudinary doesn't recognise the cloud name "${cfg.cloudName}". Copy the Cloud name from your Cloudinary Dashboard (a code like dk3x9abcd, not your business name) into Store Settings → Photo uploads.`;
+    }
+    if (/upload preset not found/i.test(m)) {
+      return `Cloudinary can't find an upload preset called "${cfg.uploadPreset}". Check the name in Cloudinary under Settings → Upload → Upload presets.`;
+    }
+    if (/whitelisted for unsigned/i.test(m)) {
+      return `The upload preset "${cfg.uploadPreset}" isn't Unsigned. In Cloudinary, edit it and set Signing mode to Unsigned.`;
+    }
+    return m;
+  }
+
+  // Asks Cloudinary whether these details would work, without uploading anything.
+  // Resolves { ok, message }. Used by Store Settings → Photo uploads.
+  window.tlCheckCloudinary = async function (cloudName, uploadPreset) {
+    const form = new FormData();
+    form.append("upload_preset", uploadPreset);
+    let res, body = {};
+    try {
+      res = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`, { method: "POST", body: form });
+      body = await res.json().catch(() => ({}));
+    } catch (err) {
+      return { ok: false, message: "Couldn't reach Cloudinary. Check your internet connection." };
+    }
+    const msg = (body.error && body.error.message) || "";
+    // with good details, the only thing missing is the photo itself
+    if (/missing required parameter - file/i.test(msg)) return { ok: true, message: "✓ Cloudinary accepted these details. Photo uploads will work." };
+    return { ok: false, message: explain(msg || `Cloudinary answered ${res.status}`, { cloudName, uploadPreset }) };
+  };
+
   async function getConfig() {
     if (config) return config;
     const snap = await firebase.firestore().collection("adminConfig").doc("media").get();
@@ -39,7 +72,7 @@
         let res = {};
         try { res = JSON.parse(xhr.responseText); } catch (e) { }
         if (xhr.status >= 200 && xhr.status < 300 && res.secure_url) resolve(res.secure_url);
-        else reject(new Error((res.error && res.error.message) || `Upload failed (${xhr.status})`));
+        else reject(new Error(explain(res.error && res.error.message, cfg) || `Upload failed (${xhr.status})`));
       };
       xhr.onerror = () => reject(new Error("Network error — check your connection"));
       xhr.send(form);
@@ -107,6 +140,7 @@
         input.dispatchEvent(new Event("change", { bubbles: true }));
         status.textContent = "✓ Uploaded — remember to save.";
       } catch (err) {
+        config = null; // re-read the settings next time, in case they were just fixed
         status.textContent = err.message;
         status.className = "upload-status error";
       } finally {
