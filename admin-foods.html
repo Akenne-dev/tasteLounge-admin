@@ -1,272 +1,637 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <title>Admin Foods | Taste Lounge</title>
+  <title>Manage Foods | Taste Lounge Admin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link rel="shortcut icon"
+  <link rel="shortcut icon"
     href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
     type="image/x-icon">
-
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; background: #f4f4f4; }
-    header { background: #111; color: #fff; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
-    header a { color: #fff; text-decoration: none; font-size: 14px; }
-    main { padding: 20px; }
-    h2 { margin-top: 0; }
-
-    form { background: #fff; padding: 15px; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-    form input, form textarea, form button { display: block; width: 100%; margin-bottom: 10px; padding: 8px; }
-    form button { width: auto; background: #2e7d32; color: #fff; border: none; cursor: pointer; }
-
-    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-    table th, table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-    table th { background: #eee; }
-    table img { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; }
-    .actions button { margin-right: 5px; padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; }
-    .edit-btn { background: #1976d2; color: #fff; }
-    .delete-btn { background: #d32f2f; color: #fff; }
-  </style>
+  <link rel="stylesheet" href="admin-common.css">
 </head>
+
 <body>
 
-<header>
-  <h1>Manage Foods</h1>
-  <a href="admin-dashboard.html">⬅️ Dashboard</a>
-</header>
+  <header class="topbar">
+    <h1>🍽️ Manage Foods</h1>
+    <nav>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="admin-foods.html" class="active">Foods</a>
+      <a href="admin-categories.html">Categories</a>
+      <a href="admin-extras.html">Extras</a>
+      <a href="admin-reviews.html">Reviews</a>
+      <a href="admin-website.html">Website</a>
+      <a href="admin-settings.html">Store Settings</a>
+      <a href="admin-orders.html">Orders</a>
+    </nav>
+  </header>
 
-<main>
-  <h2>Add New Food</h2>
-  <form id="foodForm">
-    <input type="text" id="foodName" placeholder="Food Name" required>
-    <textarea id="foodDesc" placeholder="Description" rows="2" required></textarea>
-    <input type="number" id="foodPrice" placeholder="Price (₦)" required>
-    <input type="file" id="foodImage" accept="image
-foodForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+  <main>
+    <!-- ================= Dish form ================= -->
+    <form class="card" id="foodForm" novalidate>
+      <div class="card-head">
+        <div>
+          <h2 id="formTitle">Add a new dish</h2>
+          <p class="sub">Everything you fill in here is exactly what customers see on the dish's details page.</p>
+        </div>
+      </div>
 
-  const name = document.getElementById("foodName").value.trim();
-  const desc = document.getElementById("foodDesc").value.trim();
-  const price = Number(document.getElementById("foodPrice").value);
-  const imageFile = document.getElementById("foodImage").files[0];
+      <div class="editing-banner" id="editingBanner">✏️ Editing <span id="editingName"></span> — save your changes or cancel.</div>
 
-  console.log("📝 Form submitted:", { name, desc, price, hasImage: !!imageFile });
+      <!-- Basic info -->
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="name">Dish name <span class="req">*</span></label>
+          <input type="text" id="name" placeholder="e.g. Jollof Rice & Chicken" maxlength="80">
+        </div>
+        <div class="field">
+          <label for="category">Category <span class="req">*</span></label>
+          <select id="category">
+            <option value="">Loading categories…</option>
+          </select>
+          <div class="hint">Missing one? <a class="inline-link" href="admin-categories.html">Manage categories</a></div>
+        </div>
+        <div class="field">
+          <label for="price">Price (₦) <span class="req">*</span></label>
+          <input type="number" id="price" min="0" step="50" placeholder="e.g. 5000">
+        </div>
+        <div class="field">
+          <label for="oldPrice">Old price (₦) — optional</label>
+          <input type="number" id="oldPrice" min="0" step="50" placeholder="e.g. 6500">
+          <div class="hint">Shows a crossed-out price and "Save x%" on the dish.</div>
+        </div>
+        <div class="field span-2">
+          <label for="imageUrl">Image URL <span class="req">*</span></label>
+          <input type="url" id="imageUrl" placeholder="https://example.com/food-image.jpg">
+          <img id="imagePreview" class="image-preview" alt="Preview">
+        </div>
+        <div class="field span-2">
+          <label for="description">Description <span class="req">*</span></label>
+          <textarea id="description" rows="3" maxlength="400"
+            placeholder="Describe the dish — how it's cooked, how it tastes, what it comes with…"></textarea>
+        </div>
+      </div>
 
-  if (!name || !desc || !price || !imageFile) return alert("All fields are required");
+      <!-- What's inside -->
+      <div class="section">
+        <p class="section-title">What's inside</p>
+        <p class="section-hint">The main ingredients. Type one and press <b>Enter</b> (or paste a comma-separated list).</p>
+        <div class="chip-input" id="ingredientsBox">
+          <input type="text" id="ingredientInput" placeholder="e.g. Long-grain rice">
+        </div>
+      </div>
 
-  const id = db.collection("foods").doc().id;
-  const storageRef = storage.ref(`foods/${id}-${imageFile.name}`);
+      <!-- Portion sizes -->
+      <div class="section">
+        <p class="section-title">Portion sizes</p>
+        <p class="section-hint">Optional. The first portion is selected by default. Leave empty if the dish only comes in one size.</p>
+        <div id="sizesList"></div>
+        <button type="button" class="btn btn-secondary btn-sm" id="addSizeBtn">+ Add portion</button>
+      </div>
 
-  try {
-    console.log("📤 Uploading image to Firebase Storage...");
-    console.log("File size:", (imageFile.size / 1024 / 1024).toFixed(2), "MB");
-    console.log("File type:", imageFile.type);
-    
-    const uploadTask = storageRef.put(imageFile);
-    
-    
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log("📊 Upload progress:", progress.toFixed(1) + "%");
-      },
-      (error) => {
-        console.error("❌ Upload progress error:", error.code, error.message);
+      <!-- Extras -->
+      <div class="section">
+        <p class="section-title">Add extras</p>
+        <p class="section-hint">Tick the add-ons customers can choose for this dish. <a class="inline-link"
+            href="admin-extras.html">Manage all extras</a></p>
+        <div class="checks" id="extrasList"><p class="muted">Loading extras…</p></div>
+        <div class="quick-add">
+          <input type="text" id="newExtraName" placeholder="New extra, e.g. Fried plantain (dodo)">
+          <input type="number" id="newExtraPrice" min="0" step="50" placeholder="Price ₦">
+          <button type="button" class="btn btn-secondary btn-sm" id="createExtraBtn">+ Create &amp; tick</button>
+        </div>
+      </div>
+
+      <!-- Details -->
+      <div class="section">
+        <p class="section-title">Dish details</p>
+        <p class="section-hint">Optional — anything left empty is simply hidden on the app.</p>
+        <div class="grid grid-4">
+          <div class="field">
+            <label for="prepTime">Prep time</label>
+            <input type="text" id="prepTime" placeholder="e.g. 20–25 min">
+          </div>
+          <div class="field">
+            <label for="calories">Calories (kcal)</label>
+            <input type="number" id="calories" min="0" placeholder="e.g. 650">
+          </div>
+          <div class="field">
+            <label for="serves">Serves (people)</label>
+            <input type="number" id="serves" min="1" placeholder="e.g. 1">
+          </div>
+          <div class="field">
+            <label for="spice">Spice level</label>
+            <select id="spice">
+              <option value="">Not applicable</option>
+              <option value="0">Not spicy</option>
+              <option value="1">Mild 🌶️</option>
+              <option value="2">Medium 🌶️🌶️</option>
+              <option value="3">Hot 🌶️🌶️🌶️</option>
+            </select>
+          </div>
+          <div class="field span-2">
+            <label for="badge">Badge</label>
+            <input type="text" id="badge" maxlength="20" placeholder="e.g. Bestseller, New, Chef's pick">
+            <div class="hint">Small label on the dish photo.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visibility -->
+      <div class="section">
+        <p class="section-title">Visibility &amp; labels</p>
+        <div class="checks">
+          <label class="check-item"><input type="checkbox" id="available" checked> <span>Available<small>Uncheck when sold out</small></span></label>
+          <label class="check-item"><input type="checkbox" id="trending"> <span>Show in Trending<small>Foods page carousel</small></span></label>
+          <label class="check-item"><input type="checkbox" id="popular"> <span>Show in Popular<small>"Popular This Week"</small></span></label>
+          <label class="check-item"><input type="checkbox" id="vegetarian"> <span>Vegetarian<small>Shows a "Veg" label</small></span></label>
+          <label class="check-item"><input type="checkbox" id="adult"> <span>18+ only<small>For alcoholic drinks</small></span></label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="submitBtn">Add dish</button>
+        <button type="button" class="btn btn-secondary" id="cancelBtn" hidden>Cancel editing</button>
+      </div>
+    </form>
+
+    <!-- ================= Dish list ================= -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>All dishes <span class="muted" id="foodCount"></span></h2>
+          <p class="sub">Edit any dish, hide it when sold out, or delete it.</p>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input type="search" id="searchFoods" placeholder="Search dishes…">
+        <select id="filterCategory">
+          <option value="">All categories</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Image</th>
+              <th>Dish</th>
+              <th class="hide-sm">Category</th>
+              <th>Price</th>
+              <th class="hide-sm">Options</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="foodsList">
+            <tr><td colspan="6" class="empty">Loading dishes…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const form = $("foodForm");
+
+    let foods = [];       // [{ id, ...data }]
+    let categories = [];  // [{ id, name, emoji, order }]
+    let extras = [];      // [{ id, name, price }]
+    let editingId = null;
+    let ingredients = [];
+    let checkedExtras = new Set();
+
+    /* ================= Live data ================= */
+    db.collection("categories").onSnapshot((snap) => {
+      categories = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(b.name));
+      renderCategoryOptions();
+      renderFoods();
+    }, (err) => showLoadError("categories", err));
+
+    db.collection("extras").onSnapshot((snap) => {
+      extras = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => String(a.name).localeCompare(b.name));
+      renderExtras();
+      renderFoods();
+    }, (err) => showLoadError("extras", err));
+
+    db.collection("foods").onSnapshot((snap) => {
+      foods = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(byMenuOrder);
+      renderFoods();
+    }, (err) => showLoadError("dishes", err));
+
+    function showLoadError(what, err) {
+      console.error(`Error loading ${what}:`, err);
+      toast(`Couldn't load ${what}: ${err.message}`, "error");
+    }
+
+    // Older dishes only stored the category name, so match by name too.
+    function categoryOf(food) {
+      return categories.find((c) => c.id === food.categoryId) ||
+        categories.find((c) => c.name === food.category) || null;
+    }
+
+    /* ================= Category select ================= */
+    function renderCategoryOptions() {
+      const current = $("category").value;
+      $("category").innerHTML = categories.length
+        ? `<option value="">Select a category</option>` +
+          categories.map((c) => `<option value="${esc(c.id)}">${esc(`${c.emoji || ""} ${c.name}`.trim())}</option>`).join("")
+        : `<option value="">No categories yet — create one first</option>`;
+      $("category").value = current;
+
+      const filter = $("filterCategory").value;
+      $("filterCategory").innerHTML = `<option value="">All categories</option>` +
+        categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+      $("filterCategory").value = filter;
+    }
+
+    /* ================= Ingredients (chips) ================= */
+    function renderIngredients() {
+      const box = $("ingredientsBox");
+      box.querySelectorAll(".chip").forEach((c) => c.remove());
+      ingredients.forEach((item, i) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.innerHTML = `${esc(item)} <button type="button" aria-label="Remove ${esc(item)}" data-i="${i}">×</button>`;
+        box.insertBefore(chip, $("ingredientInput"));
+      });
+    }
+
+    function addIngredients(text) {
+      text.split(",").map((t) => t.trim()).filter(Boolean).forEach((t) => {
+        if (!ingredients.some((x) => x.toLowerCase() === t.toLowerCase())) ingredients.push(t);
+      });
+      renderIngredients();
+    }
+
+    $("ingredientInput").addEventListener("keydown", (e) => {
+      const input = e.target;
+      if (e.key === "Enter" || e.key === ",") {
+        e.preventDefault();
+        addIngredients(input.value);
+        input.value = "";
+      } else if (e.key === "Backspace" && !input.value && ingredients.length) {
+        ingredients.pop();
+        renderIngredients();
       }
-    );
-    
-    const snapshot = await uploadTask;
-    const imageUrl = await snapshot.ref.getDownloadURL();
-    console.log("✅ Image uploaded:", imageUrl);
-
-    console.log("💾 Saving food to Firestore...");
-    await db.collection("foods").doc(id).set({
-      name,
-      description: desc,
-      price,
-      imageUrl,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    $("ingredientInput").addEventListener("blur", (e) => {
+      if (e.target.value.trim()) {
+        addIngredients(e.target.value);
+        e.target.value = "";
+      }
+    });
+    $("ingredientInput").addEventListener("paste", (e) => {
+      const text = (e.clipboardData || window.clipboardData).getData("text");
+      if (text.includes(",")) {
+        e.preventDefault();
+        addIngredients(text);
+      }
+    });
+    $("ingredientsBox").addEventListener("click", (e) => {
+      if (e.target.dataset.i !== undefined) {
+        ingredients.splice(Number(e.target.dataset.i), 1);
+        renderIngredients();
+      } else {
+        $("ingredientInput").focus();
+      }
     });
 
-    console.log("✅ Food saved successfully!");
-    foodForm.reset();
-    alert("Food added successfully!");
-  } catch (err) {
-    console.error("❌ Error adding food:", err);
-    console.error("Error code:", err.code);
-    console.error("Error message:", err.message);
-    alert(`Failed to add food: ${err.message}`);
-  }
-});
+    /* ================= Portion sizes ================= */
+    function addSizeRow(size = { label: "", note: "", price: "" }) {
+      const row = document.createElement("div");
+      row.className = "repeater-row";
+      row.innerHTML = `
+        <input type="text" class="size-label" placeholder="Name, e.g. Large" maxlength="30" value="${esc(size.label)}">
+        <input type="text" class="size-note" placeholder="Note, e.g. Extra-hungry portion" maxlength="40" value="${esc(size.note)}">
+        <input type="number" class="size-price" placeholder="+ ₦ extra" min="0" step="50" value="${esc(size.price)}">
+        <button type="button" class="btn btn-danger btn-sm btn-icon" title="Remove portion" aria-label="Remove portion">✕</button>`;
+      row.querySelector("button").onclick = () => {
+        row.remove();
+        updateSizesEmpty();
+      };
+      $("sizesList").appendChild(row);
+      updateSizesEmpty();
+    }
 
+    function updateSizesEmpty() {
+      const list = $("sizesList");
+      let empty = list.querySelector(".repeater-empty");
+      const hasRows = list.querySelector(".repeater-row");
+      if (!hasRows && !empty) {
+        empty = document.createElement("p");
+        empty.className = "repeater-empty";
+        empty.textContent = "No portion sizes — the dish has a single size.";
+        list.appendChild(empty);
+      } else if (hasRows && empty) {
+        empty.remove();
+      }
+    }
 
-console.log("🔄 Setting up Firestore listener for foods...");
-db.collection("foods")
-  .orderBy("createdAt", "desc")
-  .onSnapshot(
-    (snapshot) => {
-      console.log("📥 Snapshot received, docs count:", snapshot.size);
-      
-      if (snapshot.empty) {
-        console.warn("⚠️ No foods found in collection");
-        foodsList.innerHTML = `<tr><td colspan="5">No foods found.</td></tr>`;
+    function readSizes() {
+      return [...$("sizesList").querySelectorAll(".repeater-row")]
+        .map((row) => ({
+          label: row.querySelector(".size-label").value.trim(),
+          note: row.querySelector(".size-note").value.trim(),
+          price: Number(row.querySelector(".size-price").value) || 0,
+        }))
+        .filter((s) => s.label);
+    }
+
+    $("addSizeBtn").onclick = () => {
+      // a sensible first row: the default portion costs nothing extra
+      if (!$("sizesList").querySelector(".repeater-row")) addSizeRow({ label: "Regular", note: "", price: 0 });
+      addSizeRow();
+    };
+
+    /* ================= Extras picker ================= */
+    function renderExtras() {
+      const box = $("extrasList");
+      if (!extras.length) {
+        box.innerHTML = `<p class="muted">No extras yet — create one below.</p>`;
+        return;
+      }
+      box.innerHTML = extras.map((x) => `
+        <label class="check-item ${checkedExtras.has(x.id) ? "on" : ""}">
+          <input type="checkbox" value="${esc(x.id)}" ${checkedExtras.has(x.id) ? "checked" : ""}>
+          <span>${esc(x.name)}</span>
+          <span class="price">${Number(x.price) ? "+" + naira(x.price) : "Free"}</span>
+        </label>`).join("");
+    }
+
+    $("extrasList").addEventListener("change", (e) => {
+      if (e.target.type !== "checkbox") return;
+      e.target.checked ? checkedExtras.add(e.target.value) : checkedExtras.delete(e.target.value);
+      e.target.closest(".check-item").classList.toggle("on", e.target.checked);
+    });
+
+    $("createExtraBtn").onclick = async () => {
+      const name = $("newExtraName").value.trim();
+      const price = Number($("newExtraPrice").value) || 0;
+      if (!name) return toast("Type a name for the new extra", "error");
+      if (extras.some((x) => String(x.name).toLowerCase() === name.toLowerCase())) {
+        return toast("That extra already exists — just tick it above", "error");
+      }
+      $("createExtraBtn").disabled = true;
+      try {
+        const ref = await db.collection("extras").add({ name, price, createdAt: serverTime() });
+        checkedExtras.add(ref.id);
+        renderExtras();
+        $("newExtraName").value = "";
+        $("newExtraPrice").value = "";
+        toast(`Extra "${name}" created and ticked`);
+      } catch (err) {
+        toast("Couldn't create extra: " + err.message, "error");
+      } finally {
+        $("createExtraBtn").disabled = false;
+      }
+    };
+
+    /* ================= Image preview & checkbox styling ================= */
+    $("imageUrl").addEventListener("input", updatePreview);
+    function updatePreview() {
+      const url = $("imageUrl").value.trim();
+      const img = $("imagePreview");
+      img.onerror = () => (img.style.display = "none");
+      img.style.display = url ? "block" : "none";
+      if (url) img.src = url;
+    }
+
+    function syncFlagStyles() {
+      form.querySelectorAll(".section .checks input[id]").forEach((input) => {
+        input.closest(".check-item").classList.toggle("on", input.checked);
+      });
+    }
+    form.addEventListener("change", (e) => {
+      if (e.target.matches(".check-item input[id]")) syncFlagStyles();
+    });
+
+    /* ================= Save ================= */
+    function readForm() {
+      const category = categories.find((c) => c.id === $("category").value);
+      return {
+        name: $("name").value.trim(),
+        description: $("description").value.trim(),
+        price: Number($("price").value),
+        oldPrice: numOrNull($("oldPrice").value),
+        imageUrl: $("imageUrl").value.trim(),
+        categoryId: category ? category.id : "",
+        category: category ? category.name : "",
+        ingredients: ingredients.slice(),
+        sizes: readSizes(),
+        // only keep extras that still exist
+        extraIds: [...checkedExtras].filter((id) => extras.some((x) => x.id === id)),
+        prepTime: $("prepTime").value.trim(),
+        calories: numOrNull($("calories").value),
+        serves: numOrNull($("serves").value),
+        spice: numOrNull($("spice").value),
+        badge: $("badge").value.trim(),
+        available: $("available").checked,
+        trending: $("trending").checked,
+        popular: $("popular").checked,
+        vegetarian: $("vegetarian").checked,
+        adult: $("adult").checked,
+      };
+    }
+
+    function validate(data) {
+      if (!data.name) return "Enter the dish name";
+      if (!data.categoryId) return "Choose a category";
+      if (!(data.price > 0)) return "Enter a price greater than 0";
+      if (data.oldPrice !== null && data.oldPrice <= data.price) return "Old price must be higher than the price (or leave it empty)";
+      if (!data.imageUrl) return "Paste an image URL";
+      if (!/^https?:\/\//i.test(data.imageUrl)) return "Image URL must start with http:// or https://";
+      if (!data.description) return "Write a short description";
+      const unnamed = [...$("sizesList").querySelectorAll(".repeater-row")]
+        .some((row) => !row.querySelector(".size-label").value.trim() && row.querySelector(".size-price").value);
+      if (unnamed) return "Every portion size needs a name";
+      return null;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      // add whatever is still typed in the ingredient box
+      if ($("ingredientInput").value.trim()) {
+        addIngredients($("ingredientInput").value);
+        $("ingredientInput").value = "";
+      }
+
+      const data = readForm();
+      const problem = validate(data);
+      if (problem) return toast(problem, "error");
+
+      const btn = $("submitBtn");
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        if (editingId) {
+          await db.collection("foods").doc(editingId).update({ ...data, updatedAt: serverTime() });
+          toast(`"${data.name}" updated`);
+        } else {
+          await db.collection("foods").add({ ...data, createdAt: serverTime() });
+          toast(`"${data.name}" added to the menu`);
+        }
+        resetForm();
+      } catch (err) {
+        console.error("Error saving dish:", err);
+        toast("Couldn't save: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = editingId ? "Save changes" : "Add dish";
+      }
+    });
+
+    function resetForm() {
+      editingId = null;
+      form.reset();
+      ingredients = [];
+      checkedExtras = new Set();
+      $("sizesList").innerHTML = "";
+      updateSizesEmpty();
+      renderIngredients();
+      renderExtras();
+      updatePreview();
+      syncFlagStyles();
+      $("formTitle").textContent = "Add a new dish";
+      $("submitBtn").textContent = "Add dish";
+      $("cancelBtn").hidden = true;
+      $("editingBanner").classList.remove("show");
+    }
+
+    $("cancelBtn").onclick = resetForm;
+
+    /* ================= Edit ================= */
+    function editFood(id) {
+      const f = foods.find((x) => x.id === id);
+      if (!f) return toast("Dish not found", "error");
+      resetForm();
+      editingId = id;
+
+      const cat = categoryOf(f);
+      $("name").value = f.name || "";
+      $("category").value = cat ? cat.id : "";
+      $("price").value = f.price ?? "";
+      $("oldPrice").value = f.oldPrice ?? "";
+      $("imageUrl").value = f.imageUrl || "";
+      $("description").value = f.description || "";
+      ingredients = Array.isArray(f.ingredients) ? f.ingredients.slice() : [];
+      (Array.isArray(f.sizes) ? f.sizes : []).forEach((s) => addSizeRow({ label: s.label || "", note: s.note || "", price: s.price ?? 0 }));
+      checkedExtras = new Set(Array.isArray(f.extraIds) ? f.extraIds : []);
+      $("prepTime").value = f.prepTime || "";
+      $("calories").value = f.calories ?? "";
+      $("serves").value = f.serves ?? "";
+      $("spice").value = f.spice === null || f.spice === undefined ? "" : String(f.spice);
+      $("badge").value = f.badge || "";
+      $("available").checked = f.available !== false;
+      $("trending").checked = !!f.trending;
+      $("popular").checked = !!f.popular;
+      $("vegetarian").checked = !!f.vegetarian;
+      $("adult").checked = !!f.adult;
+
+      renderIngredients();
+      renderExtras();
+      updatePreview();
+      syncFlagStyles();
+      $("formTitle").textContent = "Edit dish";
+      $("editingName").textContent = `"${f.name}"`;
+      $("editingBanner").classList.add("show");
+      $("submitBtn").textContent = "Save changes";
+      $("cancelBtn").hidden = false;
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    /* ================= List ================= */
+    function renderFoods() {
+      const body = $("foodsList");
+      const q = $("searchFoods").value.trim().toLowerCase();
+      const catFilter = $("filterCategory").value;
+      const list = foods.filter((f) => {
+        const cat = categoryOf(f);
+        if (catFilter && (!cat || cat.id !== catFilter)) return false;
+        return !q || String(f.name).toLowerCase().includes(q);
+      });
+
+      $("foodCount").textContent = `(${foods.length})`;
+      if (!list.length) {
+        body.innerHTML = `<tr><td colspan="6" class="empty">${foods.length ? "No dishes match your search." : "No dishes yet — add your first one above!"}</td></tr>`;
         return;
       }
 
-      console.log("✅ Loading", snapshot.size, "foods...");
-      foodsList.innerHTML = "";
-      snapshot.forEach((doc) => {
-        const f = doc.data();
-        console.log("📄 Food loaded:", doc.id, f.name);
-        foodsList.innerHTML += renderFoodRow(doc.id, f);
-      });
-    },
-    (error) => {
-      console.error("❌ Firestore listener error:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
-      foodsList.innerHTML = `<tr><td colspan="5" style="color:red;">Error loading foods: ${error.message}</td></tr>`;
-    }
-  );
-
-function renderFoodRow(id, f) {
-  return `
-    <tr id="row-${id}">
-      <td><img src="${f.imageUrl}" alt="${f.name}"></td>
-      <td>${f.name}</td>
-      <td>${f.description}</td>
-      <td>${Number(f.price).toLocaleString()}</td>
-      <td class="actions">
-        <button class="edit-btn" onclick="editFood('${id}')">Edit</button>
-        <button class="delete-btn" onclick="deleteFood('${id}')">Delete</button>
-      </td>
-    </tr>
-  `;
-}
-
-
-async function deleteFood(id) {
-  if (!confirm("Delete this food?")) return;
-
-  try {
-    console.log("🗑️ Deleting food:", id);
-    const doc = await db.collection("foods").doc(id).get();
-    const imageUrl = doc.data().imageUrl;
-
-    if (imageUrl) {
-      console.log("🗑️ Deleting image from Storage...");
-      const ref = storage.refFromURL(imageUrl);
-      await ref.delete();
-      console.log("✅ Image deleted");
+      body.innerHTML = list.map((f) => {
+        const cat = categoryOf(f);
+        const sizes = Array.isArray(f.sizes) ? f.sizes.length : 0;
+        const extraCount = (Array.isArray(f.extraIds) ? f.extraIds : []).filter((id) => extras.some((x) => x.id === id)).length;
+        const tags = [
+          f.available === false ? `<span class="badge badge-grey">Hidden</span>` : "",
+          f.trending ? `<span class="badge badge-red">Trending</span>` : "",
+          f.popular ? `<span class="badge badge-yellow">Popular</span>` : "",
+          f.badge ? `<span class="badge badge-green">${esc(f.badge)}</span>` : "",
+        ].join("");
+        return `
+          <tr>
+            <td><img class="thumb" src="${esc(f.imageUrl)}" alt="" onerror="this.style.visibility='hidden'"></td>
+            <td><strong>${esc(f.name)}</strong><br>${tags}</td>
+            <td class="hide-sm">${cat ? esc(cat.name) : `<span class="badge badge-red">No category</span>`}</td>
+            <td>${naira(f.price)}${f.oldPrice ? `<br><s class="muted">${naira(f.oldPrice)}</s>` : ""}</td>
+            <td class="hide-sm muted">${sizes} portion${sizes === 1 ? "" : "s"} · ${extraCount} extra${extraCount === 1 ? "" : "s"}</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-secondary btn-sm" data-action="edit" data-id="${esc(f.id)}">Edit</button>
+                <button class="btn btn-secondary btn-sm" data-action="toggle" data-id="${esc(f.id)}">${f.available === false ? "Show" : "Hide"}</button>
+                <button class="btn btn-danger btn-sm" data-action="delete" data-id="${esc(f.id)}">Delete</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join("");
     }
 
-    await db.collection("foods").doc(id).delete();
-    console.log("✅ Food deleted successfully!");
-    alert("Food deleted successfully!");
-  } catch (err) {
-    console.error("❌ Error deleting food:", err);
-    console.error("Error code:", err.code);
-    alert(`Failed to delete food: ${err.message}`);
-  }
-}
+    $("searchFoods").addEventListener("input", renderFoods);
+    $("filterCategory").addEventListener("change", renderFoods);
 
+    $("foodsList").addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      const food = foods.find((f) => f.id === btn.dataset.id);
+      if (!food) return;
 
-async function editFood(id) {
-  console.log("✏️ Editing food:", id);
-  try {
-    const doc = await db.collection("foods").doc(id).get();
-    if (!doc.exists) return alert("Food not found");
+      if (btn.dataset.action === "edit") return editFood(food.id);
 
-    const f = doc.data();
-
-    
-    const row = document.getElementById(`row-${id}`);
-    row.innerHTML = `
-      <td>
-        <img src="${f.imageUrl}" alt="${f.name}" style="width:60px;height:60px;object-fit:cover;">
-        <input type="file" id="newImage-${id}" accept="image/*">
-      </td>
-      <td><input type="text" id="newName-${id}" value="${f.name}"></td>
-      <td><textarea id="newDesc-${id}" rows="2">${f.description}</textarea></td>
-      <td><input type="number" id="newPrice-${id}" value="${f.price}"></td>
-      <td>
-        <button onclick="saveEdit('${id}')">Save</button>
-        <button onclick="cancelEdit('${id}')">Cancel</button>
-      </td>
-    `;
-  } catch (err) {
-    console.error("❌ Error editing food:", err);
-    alert(`Failed to edit food: ${err.message}`);
-  }
-}
-
-async function saveEdit(id) {
-  const name = document.getElementById(`newName-${id}`).value.trim();
-  const desc = document.getElementById(`newDesc-${id}`).value.trim();
-  const price = Number(document.getElementById(`newPrice-${id}`).value);
-  const newImageFile = document.getElementById(`newImage-${id}`).files[0];
-
-  console.log("💾 Saving edit for:", id, { name, desc, price, hasNewImage: !!newImageFile });
-
-  if (!name || !desc || !price) return alert("Name, description, and price are required");
-
-  try {
-    const updateData = { name, description: desc, price, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-
-    if (newImageFile) {
-      
-      console.log("🗑️ Deleting old image...");
-      const doc = await db.collection("foods").doc(id).get();
-      const oldImageUrl = doc.data().imageUrl;
-      if (oldImageUrl) {
-        const ref = storage.refFromURL(oldImageUrl);
-        await ref.delete();
-        console.log("✅ Old image deleted");
+      if (btn.dataset.action === "toggle") {
+        const available = food.available === false;
+        try {
+          await db.collection("foods").doc(food.id).update({ available, updatedAt: serverTime() });
+          toast(available ? `"${food.name}" is visible on the menu` : `"${food.name}" is hidden from the menu`);
+        } catch (err) {
+          toast("Couldn't update: " + err.message, "error");
+        }
       }
 
-      
-      console.log("📤 Uploading new image...");
-      console.log("File size:", (newImageFile.size / 1024 / 1024).toFixed(2), "MB");
-      
-      const uploadTask = storage.ref(`foods/${id}-${newImageFile.name}`).put(newImageFile);
-      
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log("📊 Upload progress:", progress.toFixed(1) + "%");
+      if (btn.dataset.action === "delete") {
+        if (!confirm(`Delete "${food.name}" permanently?`)) return;
+        try {
+          // remove the dish and its rating totals together
+          const batch = db.batch();
+          batch.delete(db.collection("foods").doc(food.id));
+          batch.delete(db.collection("ratings").doc(food.id));
+          await batch.commit();
+          if (editingId === food.id) resetForm();
+          toast(`"${food.name}" deleted`);
+        } catch (err) {
+          toast("Couldn't delete: " + err.message, "error");
         }
-      );
-      
-      const snapshot = await uploadTask;
-      const imageUrl = await snapshot.ref.getDownloadURL();
-      updateData.imageUrl = imageUrl;
-      console.log("✅ New image uploaded");
-    }
+      }
+    });
 
-    await db.collection("foods").doc(id).update(updateData);
-    console.log("✅ Food updated successfully!");
-    alert("Food updated!");
-  } catch (err) {
-    console.error("❌ Error updating food:", err);
-    console.error("Error code:", err.code);
-    alert(`Failed to update food: ${err.message}`);
-  }
-}
-
-async function cancelEdit(id) {
-  console.log("❌ Edit cancelled for:", id);
-  try {
-    const doc = await db.collection("foods").doc(id).get();
-    const f = doc.data();
-    document.getElementById(`row-${id}`).innerHTML = renderFoodRow(id, f);
-  } catch (err) {
-    console.error("❌ Error cancelling edit:", err);
-  }
-}
-
-</script>
-
+    resetForm();
+  </script>
 </body>
+
 </html>

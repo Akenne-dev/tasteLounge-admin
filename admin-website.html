@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Website | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon">
+  <link rel="stylesheet" href="admin-common.css">
+  <style>
+    .tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .tab {
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--input);
+      background: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .tab.active {
+      background: var(--red);
+      border-color: var(--red);
+      color: #fff;
+    }
+
+    .page-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 62px;
+      z-index: 20;
+      background: var(--bg);
+      padding: 10px 0;
+      margin-bottom: 8px;
+    }
+
+    .page-bar .actions {
+      align-items: center;
+    }
+
+    .dirty {
+      color: #a87800;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .list-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      background: #fcfbf9;
+    }
+
+    .list-item-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .list-item-head strong {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .list-item .list-item {
+      background: #fff;
+    }
+
+    .thumb-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .thumb-row input {
+      flex: 1;
+    }
+
+    .thumb {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #f1ede8;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    video.thumb {
+      background: #222;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="topbar">
+    <h1>🌐 Website</h1>
+    <nav>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="admin-foods.html">Foods</a>
+      <a href="admin-categories.html">Categories</a>
+      <a href="admin-extras.html">Extras</a>
+      <a href="admin-reviews.html">Reviews</a>
+      <a href="admin-website.html" class="active">Website</a>
+      <a href="admin-settings.html">Store Settings</a>
+      <a href="admin-orders.html">Orders</a>
+    </nav>
+  </header>
+
+  <main>
+    <p class="sub" style="margin-top:0">Edit the text, photos and videos on your public pages. Paste links (URLs) for
+      images and videos. Changes go live as soon as you save.</p>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="page-bar">
+      <a class="inline-link" id="viewLink" target="_blank" rel="noopener">View this page ↗</a>
+      <div class="actions">
+        <span class="dirty" id="dirtyNote" hidden>Unsaved changes</span>
+        <button type="button" class="btn btn-primary" id="saveBtn" disabled>Save</button>
+      </div>
+    </div>
+    <div id="editor"><p class="muted">Loading…</p></div>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+
+  <script>
+    /* Each tab edits one Firestore document: site/{id}. The public pages read
+       these through site-content.js. Field types: text, textarea, number, url,
+       image, video, list (with item fields), mediaList (list of URLs). */
+    const SITE = "https://taste-lounge-3075.web.app/";
+    const img = (key, label, hint) => ({ key, label, type: "image", hint });
+    const text = (key, label, extra = {}) => ({ key, label, type: "text", ...extra });
+    const area = (key, label, extra = {}) => ({ key, label, type: "textarea", ...extra });
+
+    const SCHEMA = {
+      general: {
+        tab: "General", page: "index.html",
+        intro: "Shared by every public page: logo, opening hours, footer and pop-up messages.",
+        sections: [
+          { title: "Brand", fields: [text("brandName", "Brand name (logo text)")] },
+          {
+            title: "Opening hours", fields: [
+              { key: "openHour", label: "Opens at (hour, 0–23)", type: "number", min: 0, max: 23, hint: "Drives the Open/Closed badge on the home page." },
+              { key: "closeHour", label: "Closes at (hour, 0–23)", type: "number", min: 0, max: 23, hint: "e.g. 18 = 6 PM" },
+              text("hoursTitle", "Opening hours heading", { span: 2 }),
+              { key: "hours", label: "Opening hours list (About page)", type: "list", span: 2, itemLabel: "Row", addLabel: "+ Add row",
+                fields: [text("days", "Days", { placeholder: "Mon – Fri" }), text("time", "Hours", { placeholder: "9:00 AM – 6:00 PM" })] },
+            ],
+          },
+          {
+            title: "Menu pop-up messages", fields: [
+              area("crewMessage", "\"THE CREW\" message"),
+              area("locationMessage", "\"LOCATION\" message"),
+            ],
+          },
+          {
+            title: "Footer", fields: [
+              text("footerMenuText", "Menu line", { span: 2 }),
+              text("email", "Contact email"),
+              text("location", "Location"),
+              { key: "instagram", label: "Instagram link", type: "url" },
+              { key: "facebook", label: "Facebook link", type: "url" },
+              { key: "tiktok", label: "TikTok link", type: "url" },
+              { key: "twitter", label: "X (Twitter) link", type: "url", hint: "Leave a link empty to hide that icon." },
+              text("copyright", "Copyright line", { span: 2 }),
+            ],
+          },
+        ],
+      },
+      home: {
+        tab: "Home", page: "index.html",
+        sections: [
+          {
+            title: "Hero", fields: [
+              text("heroTitle", "Headline"),
+              text("heroButton", "Button text"),
+              area("heroText", "Intro text", { span: 2 }),
+              { key: "heroVideosDesktop", label: "Background videos — desktop", type: "mediaList", media: "video", addLabel: "+ Add video" },
+              { key: "heroVideosMobile", label: "Background videos — mobile", type: "mediaList", media: "video", addLabel: "+ Add video", hint: "Empty = use the desktop videos." },
+            ],
+          },
+          {
+            title: "Promo", fields: [
+              img("promoImage", "Image"), text("promoTitle", "Title"),
+              area("promoText", "Text"), text("promoButton", "Button text"),
+            ],
+          },
+          {
+            title: "The food grid", fields: [
+              text("foodsTitle", "Section title", { span: 2 }),
+              { key: "foods", label: "Food cards", type: "list", span: 2, itemLabel: "Card", addLabel: "+ Add food card",
+                fields: [text("name", "Name"), img("image", "Image")] },
+            ],
+          },
+          {
+            title: "Unwrapped banner", fields: [
+              text("unwrappedTitle", "Title (first line)"), text("unwrappedHighlight", "Title (highlighted line)"),
+              area("unwrappedText", "Text"), text("unwrappedButton", "Button text"),
+              img("unwrappedImage", "Background image"),
+            ],
+          },
+          { title: "Parallax strip", fields: [text("parallaxText", "Text"), img("parallaxImage", "Background image")] },
+        ],
+      },
+      gallery: {
+        tab: "Menu gallery", page: "menu.html",
+        sections: [{
+          title: "Menu photo gallery", fields: [
+            text("bannerTitle", "Banner title", { span: 2 }),
+            { key: "sections", label: "Sections", type: "list", span: 2, itemLabel: "Section", addLabel: "+ Add section",
+              fields: [
+                text("title", "Section title", { span: 2 }),
+                { key: "items", label: "Photos", type: "list", span: 2, itemLabel: "Photo", addLabel: "+ Add photo",
+                  fields: [text("label", "Caption"), img("image", "Image")] },
+              ] },
+          ],
+        }],
+      },
+      about: {
+        tab: "About our food", page: "about-food.html",
+        intro: "The opening hours on this page come from the General tab.",
+        sections: [
+          { title: "Top section", fields: [img("heroImage", "Image"), text("heroTitle", "Title"), text("heroHighlight", "Highlighted words"), area("heroText", "Text")] },
+          { title: "The Taste Lounge way", fields: [text("wayHeading", "Heading"), img("wayImage", "Background image"), text("wayTitle", "Title"), text("wayHighlight", "Highlighted words"), area("wayText", "Text", { span: 2 })] },
+          { title: "Our preparation", fields: [text("prepHeading", "Heading"), img("prepImage", "Image"), text("prepTitle", "Title"), text("prepHighlight", "Highlighted words"), area("prepText", "Text", { span: 2 })] },
+          { title: "Call to action", fields: [text("ctaTitle", "Title"), text("ctaButton", "Button text")] },
+        ],
+      },
+      story: {
+        tab: "Our story", page: "our-story.html",
+        sections: [
+          { title: "Story blocks", fields: [{ key: "blocks", label: "Blocks (image + text)", type: "list", span: 2, itemLabel: "Block", addLabel: "+ Add block",
+            fields: [img("image", "Image"), text("title", "Title"), area("text", "Text", { span: 2 })] }] },
+          { title: "We are Taste Lounge", fields: [text("weHeading", "Heading"), img("weImage", "Background image"), text("weTitle", "Title", { span: 2 }), area("weText", "Text", { span: 2 })] },
+          { title: "Our history", fields: [text("historyHeading", "Heading"), img("historyImage", "Image"), text("historyTitle", "Title"), text("historyHighlight", "Highlighted words"), area("historyText", "Text", { span: 2 })] },
+        ],
+      },
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const data = {};       // site/{id} documents being edited
+    const dirty = new Set();
+    let current = "general";
+
+    /* ---------------- rendering ---------------- */
+    function el(tag, attrs = {}, children = []) {
+      const node = document.createElement(tag);
+      Object.entries(attrs).forEach(([k, v]) => {
+        if (k === "class") node.className = v;
+        else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+        else if (v !== undefined && v !== null) node.setAttribute(k, v);
+      });
+      [].concat(children).forEach((c) => node.append(c instanceof Node ? c : document.createTextNode(c)));
+      return node;
+    }
+
+    function markDirty() {
+      dirty.add(current);
+      $("dirtyNote").hidden = false;
+    }
+
+    function preview(type, url) {
+      if (type === "video") return el("video", { class: "thumb", src: url || null, muted: "", preload: "metadata" });
+      const image = el("img", { class: "thumb", alt: "", src: url || null });
+      image.onerror = () => (image.style.visibility = "hidden");
+      image.onload = () => (image.style.visibility = "");
+      return image;
+    }
+
+    function fieldNode(f, obj) {
+      const wrap = el("div", { class: "field" + (f.span === 2 ? " span-2" : "") });
+      wrap.append(el("label", {}, f.label));
+      const value = obj[f.key];
+
+      if (f.type === "textarea") {
+        const t = el("textarea", { rows: 3, oninput: (e) => { obj[f.key] = e.target.value; markDirty(); } });
+        t.value = value || "";
+        wrap.append(t);
+      } else if (f.type === "image" || f.type === "url" || f.type === "video") {
+        const input = el("input", { type: "url", placeholder: "https://…" });
+        input.value = value || "";
+        if (f.type === "url") {
+          input.addEventListener("input", () => { obj[f.key] = input.value.trim(); markDirty(); });
+          wrap.append(input);
+        } else {
+          const thumb = preview(f.type, value);
+          input.addEventListener("input", () => {
+            obj[f.key] = input.value.trim();
+            thumb.src = input.value.trim();
+            markDirty();
+          });
+          wrap.append(el("div", { class: "thumb-row" }, [thumb, input]));
+        }
+      } else if (f.type === "number") {
+        const input = el("input", { type: "number", min: f.min, max: f.max });
+        input.value = value ?? "";
+        input.addEventListener("input", () => { obj[f.key] = input.value === "" ? "" : Number(input.value); markDirty(); });
+        wrap.append(input);
+      } else if (f.type === "list") {
+        if (!Array.isArray(obj[f.key])) obj[f.key] = [];
+        wrap.append(listNode(f, obj[f.key]));
+      } else if (f.type === "mediaList") {
+        if (!Array.isArray(obj[f.key])) obj[f.key] = [];
+        wrap.append(mediaListNode(f, obj[f.key]));
+      } else {
+        const input = el("input", { type: "text", placeholder: f.placeholder || "" });
+        input.value = value || "";
+        input.addEventListener("input", () => { obj[f.key] = input.value; markDirty(); });
+        wrap.append(input);
+      }
+      if (f.hint) wrap.append(el("div", { class: "hint" }, f.hint));
+      return wrap;
+    }
+
+    function moveButtons(arr, i, rerender) {
+      const move = (d) => () => {
+        const j = i + d;
+        if (j < 0 || j >= arr.length) return;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        markDirty();
+        rerender();
+      };
+      return [
+        el("button", { type: "button", class: "btn btn-secondary btn-sm btn-icon", title: "Move up", "aria-label": "Move up", onclick: move(-1) }, "↑"),
+        el("button", { type: "button", class: "btn btn-secondary btn-sm btn-icon", title: "Move down", "aria-label": "Move down", onclick: move(1) }, "↓"),
+        el("button", {
+          type: "button", class: "btn btn-danger btn-sm btn-icon", title: "Remove", "aria-label": "Remove",
+          onclick: () => { arr.splice(i, 1); markDirty(); rerender(); },
+        }, "✕"),
+      ];
+    }
+
+    // a list of objects, e.g. food cards { name, image } — can be nested
+    function listNode(f, arr) {
+      const box = el("div");
+      const render = () => {
+        box.replaceChildren();
+        if (!arr.length) box.append(el("p", { class: "repeater-empty" }, "Nothing here yet."));
+        arr.forEach((item, i) => {
+          const grid = el("div", { class: "grid grid-2" }, f.fields.map((sub) => fieldNode(sub, item)));
+          box.append(el("div", { class: "list-item" }, [
+            el("div", { class: "list-item-head" }, [el("strong", {}, `${f.itemLabel} ${i + 1}`), el("div", { class: "actions" }, moveButtons(arr, i, render))]),
+            grid,
+          ]));
+        });
+        box.append(el("button", {
+          type: "button", class: "btn btn-secondary btn-sm",
+          onclick: () => { arr.push(Object.fromEntries(f.fields.map((s) => [s.key, s.type === "list" ? [] : ""]))); markDirty(); render(); },
+        }, f.addLabel));
+      };
+      render();
+      return box;
+    }
+
+    // a list of plain URLs, e.g. hero videos
+    function mediaListNode(f, arr) {
+      const box = el("div");
+      const render = () => {
+        box.replaceChildren();
+        if (!arr.length) box.append(el("p", { class: "repeater-empty" }, "None yet."));
+        arr.forEach((url, i) => {
+          const thumb = preview(f.media, url);
+          const input = el("input", { type: "url", placeholder: "https://….mp4" });
+          input.value = url || "";
+          input.addEventListener("input", () => { arr[i] = input.value.trim(); thumb.src = arr[i]; markDirty(); });
+          box.append(el("div", { class: "repeater-row deal-row" }, [el("div", { class: "thumb-row" }, [thumb, input]), ...moveButtons(arr, i, render)]));
+        });
+        box.append(el("button", { type: "button", class: "btn btn-secondary btn-sm", onclick: () => { arr.push(""); markDirty(); render(); } }, f.addLabel));
+      };
+      render();
+      return box;
+    }
+
+    function renderTabs() {
+      $("tabs").replaceChildren(...Object.entries(SCHEMA).map(([id, s]) => el("button", {
+        type: "button", role: "tab", class: "tab" + (id === current ? " active" : ""), "aria-selected": id === current,
+        onclick: () => { current = id; renderTabs(); renderEditor(); },
+      }, s.tab + (dirty.has(id) ? " •" : ""))));
+    }
+
+    function renderEditor() {
+      const s = SCHEMA[current];
+      const obj = data[current];
+      $("viewLink").href = SITE + s.page;
+      $("dirtyNote").hidden = !dirty.has(current);
+      const nodes = [];
+      if (s.intro) nodes.push(el("p", { class: "sub", style: "margin:0 0 14px" }, s.intro));
+      s.sections.forEach((sec) => {
+        nodes.push(el("section", { class: "card" }, [
+          el("div", { class: "card-head" }, [el("h2", {}, sec.title)]),
+          el("div", { class: "grid grid-2" }, sec.fields.map((f) => fieldNode(f, obj))),
+        ]));
+      });
+      $("editor").replaceChildren(...nodes);
+    }
+
+    /* ---------------- load & save ---------------- */
+    async function load() {
+      try {
+        const ids = Object.keys(SCHEMA);
+        const snaps = await Promise.all(ids.map((id) => db.collection("site").doc(id).get()));
+        ids.forEach((id, i) => (data[id] = snaps[i].exists ? snaps[i].data() : {}));
+        renderTabs();
+        renderEditor();
+        $("saveBtn").disabled = false;
+      } catch (err) {
+        console.error(err);
+        $("editor").innerHTML = `<p class="empty">Couldn't load the website content: ${esc(err.message)}</p>`;
+      }
+    }
+
+    // drop empty rows/URLs before saving
+    function cleanValue(f, v) {
+      if (f.type === "mediaList") return (v || []).map((x) => String(x).trim()).filter(Boolean);
+      if (f.type === "list") {
+        return (v || []).map((item) => Object.fromEntries(f.fields.map((sub) => [sub.key, cleanValue(sub, item[sub.key])])))
+          .filter((item) => Object.values(item).some((x) => (Array.isArray(x) ? x.length : String(x).trim())));
+      }
+      if (f.type === "number") return v === "" || v === undefined || v === null ? "" : Number(v);
+      return typeof v === "string" ? v.trim() : v ?? "";
+    }
+
+    $("saveBtn").onclick = async () => {
+      const s = SCHEMA[current];
+      const out = {};
+      s.sections.forEach((sec) => sec.fields.forEach((f) => (out[f.key] = cleanValue(f, data[current][f.key]))));
+      if (current === "general") {
+        for (const k of ["openHour", "closeHour"]) {
+          if (out[k] !== "" && !(out[k] >= 0 && out[k] <= 23)) return toast("Opening hours must be between 0 and 23", "error");
+        }
+      }
+      $("saveBtn").disabled = true;
+      try {
+        await db.collection("site").doc(current).set({ ...out, updatedAt: serverTime() }, { merge: true });
+        Object.assign(data[current], out);
+        dirty.delete(current);
+        renderTabs();
+        renderEditor();
+        toast(`${s.tab} saved — it's live on the website`);
+      } catch (err) {
+        toast("Couldn't save: " + err.message, "error");
+      } finally {
+        $("saveBtn").disabled = false;
+      }
+    };
+
+    window.addEventListener("beforeunload", (e) => {
+      if (dirty.size) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
+
+    load();
+  </script>
+</body>
+
+</html>

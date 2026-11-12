@@ -116,6 +116,11 @@
       <section class="nav">
         <a href="admin-orders.html">Manage Orders</a>
         <a href="admin-foods.html">Manage Foods</a>
+        <a href="admin-categories.html">Categories</a>
+        <a href="admin-extras.html">Extras</a>
+        <a href="admin-reviews.html">Reviews</a>
+        <a href="admin-website.html">Website</a>
+        <a href="admin-settings.html">Store Settings</a>
         <a href="admin-users.html">View Users</a>
       </section>
     </main>
@@ -168,6 +173,6 @@
 
   logoutBtn.onclick = async () => {
     await auth.signOut();
-    window.location.href = "admin-login.html";
+    window.location.href = "index.html";
   };
 </script>

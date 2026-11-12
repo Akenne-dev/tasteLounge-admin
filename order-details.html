@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Order Receipt | Taste Lounge Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="shortcut icon"
+      href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+      type="image/x-icon"
+    />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: bisque;
+        padding: 20px;
+        margin: 0;
+      }
+      .back-link {
+        display: inline-block;
+        margin-bottom: 15px;
+        color: red;
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 14px;
+      }
+      .receipt {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        max-width: 600px;
+        margin: auto;
+        box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.362);
+      }
+      h2 {
+        color: red;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        margin: 6px 0;
+      }
+      .item {
+        border-bottom: 1px dashed #ddd;
+        padding: 6px 0;
+      }
+      .total {
+        font-weight: 700;
+        font-size: 18px;
+      }
+      .log img {
+        height: 70px;
+        width: 70px;
+        object-fit: cover;
+      }
+      .log {
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff;
+      }
+      .status-pending { background: #ff9800; }
+      .status-confirmed { background: #2196f3; }
+      .status-delivered { background: #4caf50; }
+      .status-cancelled { background: #f44336; }
+
+      .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 20px 0;
+      }
+      .btn {
+        padding: 14px 24px;
+        font-size: 16px;
+        font-weight: 600;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        min-width: 160px;
+        transition: all 0.25s ease;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #ff416c, #ff4b2b);
+        color: #fff;
+      }
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+
+      @media (max-width: 480px) {
+        .btn {
+          width: 100%;
+          font-size: 15px;
+          padding: 14px;
+        }
+        .receipt {
+          padding: 15px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div style="max-width: 600px; margin: auto;">
+      <a class="back-link" href="admin-users.html">⬅️ Back to Users</a>
+    </div>
+    <div class="receipt" id="receipt">
+      <p>Loading receipt...</p>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <script>
+      firebase.initializeApp({
+        apiKey: "AIzaSyAW3atuDYr7OeuT2b-Tn_ooD93ZfPqMA4g",
+        authDomain: "taste-lounge-3075.firebaseapp.com",
+        projectId: "taste-lounge-3075",
+      });
+    </script>
+
+    <script src="admin-auth.js"></script>
+
+    <script>
+      const db = firebase.firestore();
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get("id");
+      const receiptEl = document.getElementById("receipt");
+
+      if (!orderId) {
+        receiptEl.innerHTML = "<p>Invalid order.</p>";
+      } else {
+        loadOrder();
+      }
+
+      async function loadOrder() {
+        try {
+          const snap = await db.collection("orders").doc(orderId).get();
+
+          if (!snap.exists) {
+            receiptEl.innerHTML = "<p>Order not found.</p>";
+            return;
+          }
+
+          const order = { id: snap.id, ...snap.data() };
+          window.currentOrder = order;
+          window.currentOrderShortId = snap.id.slice(0, 4).toUpperCase();
+          window.currentOrderDate = order.createdAt?.toDate
+            ? order.createdAt.toDate().toLocaleString()
+            : "";
+
+          renderReceipt(order);
+        } catch (err) {
+          console.error("Error loading order:", err);
+          receiptEl.innerHTML = "<p>Error loading order.</p>";
+        }
+      }
+
+      function getStatusClass(status) {
+        const s = (status || "pending").toLowerCase();
+        if (s === "confirmed") return "status-confirmed";
+        if (s === "delivered") return "status-delivered";
+        if (s === "cancelled") return "status-cancelled";
+        return "status-pending";
+      }
+
+      function renderReceipt(o) {
+        const orderDate = o.createdAt?.toDate
+          ? o.createdAt.toDate().toLocaleString()
+          : "";
+
+        const delivery = o.delivery || o.deliveryInfo || {};
+        const status = o.status?.current || "pending";
+
+        const itemsHtml = (o.items || [])
+          .map((i) => {
+            const qty = i.qty ?? i.quantity ?? 1;
+            const price = Number(i.price) || 0;
+            const total = price * qty;
+            // the customer's special instructions from the dish page
+            const note = i.note
+              ? `<div style="font-size:13px;color:#a15c00;margin:2px 0 6px;">📝 ${escapeHtml(i.note)}</div>`
+              : "";
+            return `
+              <div class="row item">
+                <span>${escapeHtml(i.name)} &times; ${qty}</span>
+                <span>&#8358;${Number(total).toLocaleString()}</span>
+              </div>${note}`;
+          })
+          .join("");
+
+        receiptEl.innerHTML = `
+          <div class="log">
+            <h2>Taste Lounge</h2>
+            <p style="font-weight:600;">Order Receipt</p>
+          </div>
+
+          <hr>
+
+          <p><strong>Order:</strong> #${escapeHtml(o.id ? o.id.slice(0, 4).toUpperCase() : "-")}</p>
+          <p><strong>Date:</strong> ${escapeHtml(orderDate)}</p>
+          <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(status)}">${escapeHtml(status)}</span></p>
+
+          <hr>
+
+          <p><strong>Name:</strong> ${escapeHtml(delivery.name || "-")}</p>
+          <p><strong>Phone:</strong> ${escapeHtml(delivery.phone || "-")}</p>
+          <p><strong>Address:</strong> ${escapeHtml(delivery.address || "-")}</p>
+
+          <hr>
+
+          ${itemsHtml}
+
+          <hr>
+
+          <div class="row">
+            <span>Subtotal</span>
+            <span>&#8358;${Number(o.pricing?.subtotal || 0).toLocaleString()}</span>
+          </div>
+
+          <div class="row">
+            <span>Delivery</span>
+            <span>&#8358;${Number(o.pricing?.delivery || 0).toLocaleString()}</span>
+          </div>
+
+          <div class="row total">
+            <span>Total</span>
+            <span>&#8358;${Number(o.pricing?.total || 0).toLocaleString()}</span>
+          </div>
+
+          <br>
+
+          <div class="action-buttons">
+            <button class="btn btn-primary" onclick="downloadPDF()">⬇ Download PDF</button>
+          </div>
+        `;
+      }
+
+      function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      function formatMoney(n) {
+        return Number(n || 0).toLocaleString();
+      }
+
+      function downloadPDF() {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF();
+        const RED = "#d32f2f";
+        let y = 20;
+
+        pdf.setTextColor(RED);
+        pdf.setFontSize(22);
+        pdf.text("TASTE LOUNGE", 105, y, { align: "center" });
+
+        y += 8;
+        pdf.setFontSize(11);
+        pdf.text("Order Receipt", 105, y, { align: "center" });
+
+        y += 10;
+        pdf.setDrawColor("#000");
+        pdf.line(10, y, 200, y);
+
+        y += 10;
+        pdf.setTextColor("#000");
+        pdf.setFontSize(11);
+        pdf.text("Order: #" + window.currentOrderShortId, 10, y);
+
+        y += 6;
+        pdf.text("Date: " + (window.currentOrderDate || ""), 10, y);
+
+        y += 6;
+        const status = window.currentOrder.status?.current || "pending";
+        pdf.text("Status: " + status, 10, y);
+
+        y += 10;
+        pdf.setDrawColor("#000");
+        pdf.line(10, y, 200, y);
+
+        y += 8;
+        const d = window.currentOrder.delivery || window.currentOrder.deliveryInfo || {};
+        pdf.text("Name: " + (d.name || "-"), 10, y);
+        y += 6;
+        pdf.text("Phone: " + (d.phone || "-"), 10, y);
+        y += 6;
+        pdf.text("Address: " + (d.address || "-"), 10, y);
+
+        y += 10;
+        pdf.setDrawColor("#000");
+        pdf.line(10, y, 200, y);
+
+        y += 10;
+        pdf.setFont(undefined, "bold");
+        pdf.text("Item", 10, y);
+        pdf.text("Amount", 190, y, { align: "right" });
+        pdf.setFont(undefined, "normal");
+
+        y += 6;
+        (window.currentOrder.items || []).forEach((i) => {
+          if (y > 270) { pdf.addPage(); y = 20; }
+          const qty = i.qty ?? i.quantity ?? 1;
+          const price = Number(i.price) || 0;
+          const total = price * qty;
+          pdf.text(i.name + " x " + qty, 10, y);
+          pdf.text("NGN " + formatMoney(total), 190, y, { align: "right" });
+          y += 6;
+        });
+
+        pdf.setDrawColor("#000");
+        pdf.line(10, y, 200, y);
+
+        y += 10;
+        const p = window.currentOrder.pricing || {};
+        pdf.text("Subtotal", 10, y);
+        pdf.text("NGN " + formatMoney(p.subtotal), 190, y, { align: "right" });
+
+        y += 6;
+        pdf.text("Delivery", 10, y);
+        pdf.text("NGN " + formatMoney(p.delivery), 190, y, { align: "right" });
+
+        y += 6;
+        pdf.setFont(undefined, "bold");
+        pdf.text("Total", 10, y);
+        pdf.text("NGN " + formatMoney(p.total), 190, y, { align: "right" });
+
+        y += 10;
+        pdf.setFontSize(10);
+        pdf.setTextColor("#555");
+        pdf.text("Powered by Taste Lounge", 105, y, { align: "center" });
+
+        pdf.save("Taste-Lounge-Receipt.pdf");
+      }
+    </script>
+  </body>
+</html>

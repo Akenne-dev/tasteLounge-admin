@@ -1,12 +1,14 @@
+// Guards admin pages: only signed-in users listed in the "admins" collection may stay.
 (function () {
   const auth = firebase.auth();
   const db = firebase.firestore();
+  const LOGIN_PAGE = "index.html"; // the admin login page
 
   document.body.style.display = "none";
 
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
-      window.location.href = "admin-login.html";
+      window.location.href = LOGIN_PAGE;
       return;
     }
 
@@ -17,7 +19,7 @@
       if (!adminSnap.exists) {
         alert("Access denied. Admins only.");
         await auth.signOut();
-        window.location.href = "log-in.html";
+        window.location.href = LOGIN_PAGE;
         return;
       }
 
@@ -26,7 +28,7 @@
       console.error("Admin auth error:", err);
       alert("Authentication error. Please login again.");
       await auth.signOut();
-      window.location.href = "admin-login.html";
+      window.location.href = LOGIN_PAGE;
     }
   });
 })();

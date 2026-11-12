@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Reviews | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon">
+  <link rel="stylesheet" href="admin-common.css">
+  <style>
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .stat {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .stat strong {
+      font-size: 26px;
+    }
+
+    .stars {
+      color: #fbc02d;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    .stars .off {
+      color: #ddd;
+    }
+
+    .comment {
+      max-width: 380px;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+    }
+
+    tr.is-hidden td {
+      opacity: .6;
+    }
+
+    .dish {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dish img {
+      width: 44px;
+      height: 44px;
+      object-fit: cover;
+      border-radius: 8px;
+      background: #f1ede8;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="topbar">
+    <h1>⭐ Reviews</h1>
+    <nav>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="admin-foods.html">Foods</a>
+      <a href="admin-categories.html">Categories</a>
+      <a href="admin-extras.html">Extras</a>
+      <a href="admin-reviews.html" class="active">Reviews</a>
+      <a href="admin-website.html">Website</a>
+      <a href="admin-settings.html">Store Settings</a>
+      <a href="admin-orders.html">Orders</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="stats">
+      <div class="stat"><span>Reviews</span><strong id="statTotal">—</strong></div>
+      <div class="stat"><span>Average rating</span><strong id="statAvg">—</strong></div>
+      <div class="stat"><span>Hidden</span><strong id="statHidden">—</strong></div>
+      <div class="stat"><span>Rated dishes</span><strong id="statDishes">—</strong></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Customer reviews</h2>
+          <p class="sub">Only customers with a paid order of a dish can review it. Reviews go live immediately — hide any you
+            don't want shown (hidden reviews don't count towards the rating).</p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="recalcBtn"
+          title="Rebuild every dish's average from its visible reviews">Recalculate ratings</button>
+      </div>
+
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Search dish, customer or comment…">
+        <select id="filterDish">
+          <option value="">All dishes</option>
+        </select>
+        <select id="filterRating">
+          <option value="">Any rating</option>
+          <option value="5">5 ★</option>
+          <option value="4">4 ★</option>
+          <option value="3">3 ★</option>
+          <option value="2">2 ★</option>
+          <option value="1">1 ★</option>
+        </select>
+        <select id="filterStatus">
+          <option value="">Visible &amp; hidden</option>
+          <option value="visible">Visible only</option>
+          <option value="hidden">Hidden only</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Dish</th>
+              <th>Customer</th>
+              <th>Rating</th>
+              <th>Review</th>
+              <th class="hide-sm">Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reviewList">
+            <tr><td colspan="6" class="empty">Loading reviews…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let reviews = [];
+    let foods = new Map();
+
+    db.collection("reviews").onSnapshot((snap) => {
+      reviews = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => millis(b.createdAt) - millis(a.createdAt));
+      render();
+    }, (err) => toast("Couldn't load reviews: " + err.message, "error"));
+
+    db.collection("foods").onSnapshot((snap) => {
+      foods = new Map(snap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+      renderDishFilter();
+      render();
+    }, (err) => toast("Couldn't load dishes: " + err.message, "error"));
+
+    function millis(ts) {
+      return ts && ts.toMillis ? ts.toMillis() : 0;
+    }
+
+    function stars(n) {
+      return `<span class="stars" aria-label="${n} out of 5">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span>`;
+    }
+
+    function renderDishFilter() {
+      const current = $("filterDish").value;
+      const reviewed = [...new Set(reviews.map((r) => r.foodId))];
+      const ids = [...new Set([...reviewed, ...foods.keys()])].filter((id) => reviewed.includes(id));
+      $("filterDish").innerHTML = `<option value="">All dishes</option>` + ids
+        .map((id) => ({ id, name: foods.get(id)?.name || id }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((d) => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+      $("filterDish").value = current;
+    }
+
+    function render() {
+      const visible = reviews.filter((r) => !r.hidden);
+      $("statTotal").textContent = reviews.length;
+      $("statHidden").textContent = reviews.length - visible.length;
+      $("statAvg").textContent = visible.length ? (visible.reduce((s, r) => s + r.rating, 0) / visible.length).toFixed(1) + " ★" : "—";
+      $("statDishes").textContent = new Set(visible.map((r) => r.foodId)).size;
+      renderDishFilter();
+
+      const q = $("search").value.trim().toLowerCase();
+      const dish = $("filterDish").value;
+      const rating = Number($("filterRating").value) || 0;
+      const status = $("filterStatus").value;
+
+      const list = reviews.filter((r) => {
+        if (dish && r.foodId !== dish) return false;
+        if (rating && r.rating !== rating) return false;
+        if (status === "visible" && r.hidden) return false;
+        if (status === "hidden" && !r.hidden) return false;
+        const hay = `${foods.get(r.foodId)?.name || ""} ${r.userName} ${r.comment}`.toLowerCase();
+        return !q || hay.includes(q);
+      });
+
+      const body = $("reviewList");
+      if (!list.length) {
+        body.innerHTML = `<tr><td colspan="6" class="empty">${reviews.length ? "No reviews match your filters." : "No reviews yet. They'll appear here as customers rate the dishes they ordered."}</td></tr>`;
+        return;
+      }
+      body.innerHTML = list.map((r) => {
+        const food = foods.get(r.foodId);
+        const date = millis(r.createdAt) ? new Date(millis(r.createdAt)).toLocaleDateString() : "—";
+        return `
+          <tr class="${r.hidden ? "is-hidden" : ""}">
+            <td>
+              <div class="dish">
+                <img src="${esc(food?.imageUrl || "")}" alt="" onerror="this.style.visibility='hidden'">
+                <span>${esc(food?.name || "Deleted dish")}</span>
+              </div>
+            </td>
+            <td>${esc(r.userName)}<br><span class="badge badge-green">Verified order</span></td>
+            <td>${stars(r.rating)}</td>
+            <td class="comment">${r.comment ? esc(r.comment) : `<span class="muted">No comment</span>`}
+              ${r.hidden ? `<br><span class="badge badge-grey">Hidden</span>` : ""}</td>
+            <td class="hide-sm">${date}</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-secondary btn-sm" data-action="toggle" data-id="${esc(r.id)}">${r.hidden ? "Show" : "Hide"}</button>
+                <button class="btn btn-danger btn-sm" data-action="delete" data-id="${esc(r.id)}">Delete</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join("");
+    }
+
+    ["search", "filterDish", "filterRating", "filterStatus"].forEach((id) => {
+      $(id).addEventListener(id === "search" ? "input" : "change", render);
+    });
+
+    // Hide/show or delete a review and keep the dish's totals (ratings/{foodId}) in step.
+    async function changeReview(review, action) {
+      const reviewRef = db.collection("reviews").doc(review.id);
+      const totalsRef = db.collection("ratings").doc(review.foodId);
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(reviewRef);
+        const totalsSnap = await tx.get(totalsRef);
+        if (!snap.exists) return;
+        const r = snap.data();
+        const t = totalsSnap.exists ? totalsSnap.data() : { sum: 0, count: 0 };
+        let sum = t.sum, count = t.count;
+
+        if (action === "delete") {
+          tx.delete(reviewRef);
+          if (!r.hidden) { sum -= r.rating; count -= 1; }
+        } else {
+          const hide = !r.hidden;
+          tx.update(reviewRef, { hidden: hide });
+          if (hide) { sum -= r.rating; count -= 1; } else { sum += r.rating; count += 1; }
+        }
+        tx.set(totalsRef, { sum: Math.max(0, sum), count: Math.max(0, count) });
+      });
+    }
+
+    $("reviewList").addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      const review = reviews.find((r) => r.id === btn.dataset.id);
+      if (!review) return;
+      const dish = foods.get(review.foodId)?.name || "this dish";
+
+      if (btn.dataset.action === "delete" && !confirm(`Delete ${review.userName}'s review of ${dish}? This can't be undone.`)) return;
+      btn.disabled = true;
+      try {
+        await changeReview(review, btn.dataset.action);
+        toast(btn.dataset.action === "delete" ? "Review deleted"
+          : review.hidden ? "Review is visible again" : "Review hidden — it no longer counts towards the rating");
+      } catch (err) {
+        toast("Couldn't update the review: " + err.message, "error");
+        btn.disabled = false;
+      }
+    });
+
+    // Rebuild every dish's totals from its visible reviews (repair tool).
+    $("recalcBtn").onclick = async () => {
+      if (!confirm("Rebuild every dish's average rating from its visible reviews?")) return;
+      $("recalcBtn").disabled = true;
+      try {
+        const [reviewSnap, totalsSnap] = await Promise.all([db.collection("reviews").get(), db.collection("ratings").get()]);
+        const totals = {};
+        reviewSnap.docs.forEach((d) => {
+          const r = d.data();
+          if (r.hidden) return;
+          totals[r.foodId] = totals[r.foodId] || { sum: 0, count: 0 };
+          totals[r.foodId].sum += r.rating;
+          totals[r.foodId].count += 1;
+        });
+        totalsSnap.docs.forEach((d) => { if (!totals[d.id]) totals[d.id] = { sum: 0, count: 0 }; });
+        const batch = db.batch();
+        Object.entries(totals).forEach(([foodId, t]) => batch.set(db.collection("ratings").doc(foodId), t));
+        await batch.commit();
+        toast(`Ratings rebuilt for ${Object.keys(totals).length} dish(es)`);
+      } catch (err) {
+        toast("Couldn't recalculate: " + err.message, "error");
+      } finally {
+        $("recalcBtn").disabled = false;
+      }
+    };
+  </script>
+</body>
+
+</html>

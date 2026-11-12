@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Extras | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon">
+  <link rel="stylesheet" href="admin-common.css">
+</head>
+
+<body>
+
+  <header class="topbar">
+    <h1>➕ Extras</h1>
+    <nav>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="admin-foods.html">Foods</a>
+      <a href="admin-categories.html">Categories</a>
+      <a href="admin-extras.html" class="active">Extras</a>
+      <a href="admin-reviews.html">Reviews</a>
+      <a href="admin-website.html">Website</a>
+      <a href="admin-settings.html">Store Settings</a>
+      <a href="admin-orders.html">Orders</a>
+    </nav>
+  </header>
+
+  <main>
+    <form class="card" id="extraForm" novalidate>
+      <div class="card-head">
+        <div>
+          <h2 id="formTitle">Add an extra</h2>
+          <p class="sub">Extras are add-ons (e.g. dodo, extra beef, whipped cream). Create them once here, then tick
+            which ones each dish offers in <a class="inline-link" href="admin-foods.html">Foods</a>.</p>
+        </div>
+      </div>
+      <div class="editing-banner" id="editingBanner">✏️ Editing <span id="editingName"></span> — the new price applies to every dish that offers it.</div>
+      <div class="grid grid-2">
+        <div class="field">
+          <label for="name">Name <span class="req">*</span></label>
+          <input type="text" id="name" maxlength="50" placeholder="e.g. Fried plantain (dodo)">
+        </div>
+        <div class="field">
+          <label for="price">Price (₦)</label>
+          <input type="number" id="price" min="0" step="50" placeholder="0 = free">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="submitBtn">Add extra</button>
+        <button type="button" class="btn btn-secondary" id="cancelBtn" hidden>Cancel editing</button>
+      </div>
+    </form>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>All extras <span class="muted" id="count"></span></h2>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Search extras…">
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Extra</th>
+              <th>Price</th>
+              <th class="hide-sm">Offered on</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="extraList">
+            <tr><td colspan="4" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let extras = [];
+    let foods = [];
+    let editingId = null;
+
+    db.collection("extras").onSnapshot((snap) => {
+      extras = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => String(a.name).localeCompare(b.name));
+      render();
+    }, (err) => toast("Couldn't load extras: " + err.message, "error"));
+
+    db.collection("foods").onSnapshot((snap) => {
+      foods = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      render();
+    }, (err) => toast("Couldn't load dishes: " + err.message, "error"));
+
+    function dishesWith(extraId) {
+      return foods.filter((f) => Array.isArray(f.extraIds) && f.extraIds.includes(extraId));
+    }
+
+    function render() {
+      const body = $("extraList");
+      const q = $("search").value.trim().toLowerCase();
+      const list = extras.filter((x) => !q || String(x.name).toLowerCase().includes(q));
+      $("count").textContent = `(${extras.length})`;
+
+      if (!list.length) {
+        body.innerHTML = `<tr><td colspan="4" class="empty">${extras.length ? "No extras match your search." : "No extras yet — add your first one above."}</td></tr>`;
+        return;
+      }
+      body.innerHTML = list.map((x) => {
+        const dishes = dishesWith(x.id);
+        const names = dishes.slice(0, 3).map((f) => esc(f.name)).join(", ");
+        return `
+          <tr>
+            <td><strong>${esc(x.name)}</strong></td>
+            <td>${Number(x.price) ? naira(x.price) : `<span class="badge badge-green">Free</span>`}</td>
+            <td class="hide-sm muted">${dishes.length ? `${dishes.length} dish${dishes.length === 1 ? "" : "es"} — ${names}${dishes.length > 3 ? "…" : ""}` : "Not used yet"}</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-secondary btn-sm" data-action="edit" data-id="${esc(x.id)}">Edit</button>
+                <button class="btn btn-danger btn-sm" data-action="delete" data-id="${esc(x.id)}">Delete</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join("");
+    }
+
+    $("search").addEventListener("input", render);
+
+    $("extraForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = $("name").value.trim();
+      const price = Number($("price").value) || 0;
+      if (!name) return toast("Enter a name for the extra", "error");
+      if (price < 0) return toast("Price can't be negative", "error");
+      const clash = extras.find((x) => String(x.name).toLowerCase() === name.toLowerCase() && x.id !== editingId);
+      if (clash) return toast("An extra with that name already exists", "error");
+
+      $("submitBtn").disabled = true;
+      try {
+        if (editingId) {
+          await db.collection("extras").doc(editingId).update({ name, price, updatedAt: serverTime() });
+          toast(`"${name}" updated`);
+        } else {
+          await db.collection("extras").add({ name, price, createdAt: serverTime() });
+          toast(`"${name}" added — now tick it on the dishes that offer it`);
+        }
+        resetForm();
+      } catch (err) {
+        toast("Couldn't save: " + err.message, "error");
+      } finally {
+        $("submitBtn").disabled = false;
+      }
+    });
+
+    function resetForm() {
+      editingId = null;
+      $("extraForm").reset();
+      $("formTitle").textContent = "Add an extra";
+      $("submitBtn").textContent = "Add extra";
+      $("cancelBtn").hidden = true;
+      $("editingBanner").classList.remove("show");
+    }
+    $("cancelBtn").onclick = resetForm;
+
+    $("extraList").addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      const extra = extras.find((x) => x.id === btn.dataset.id);
+      if (!extra) return;
+
+      if (btn.dataset.action === "edit") {
+        editingId = extra.id;
+        $("name").value = extra.name || "";
+        $("price").value = extra.price ?? 0;
+        $("formTitle").textContent = "Edit extra";
+        $("editingName").textContent = `"${extra.name}"`;
+        $("editingBanner").classList.add("show");
+        $("submitBtn").textContent = "Save changes";
+        $("cancelBtn").hidden = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      if (btn.dataset.action === "delete") {
+        const dishes = dishesWith(extra.id);
+        const msg = dishes.length
+          ? `Delete "${extra.name}"? It will also be removed from ${dishes.length} dish(es).`
+          : `Delete "${extra.name}"?`;
+        if (!confirm(msg)) return;
+        try {
+          const batch = db.batch();
+          batch.delete(db.collection("extras").doc(extra.id));
+          dishes.forEach((f) => batch.update(db.collection("foods").doc(f.id), {
+            extraIds: firebase.firestore.FieldValue.arrayRemove(extra.id),
+          }));
+          await batch.commit();
+          if (editingId === extra.id) resetForm();
+          toast(`"${extra.name}" deleted`);
+        } catch (err) {
+          toast("Couldn't delete: " + err.message, "error");
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>

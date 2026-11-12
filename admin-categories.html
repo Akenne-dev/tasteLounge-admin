@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Categories | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon">
+  <link rel="stylesheet" href="admin-common.css">
+</head>
+
+<body>
+
+  <header class="topbar">
+    <h1>🗂️ Categories</h1>
+    <nav>
+      <a href="admin-dashboard.html">Dashboard</a>
+      <a href="admin-foods.html">Foods</a>
+      <a href="admin-categories.html" class="active">Categories</a>
+      <a href="admin-extras.html">Extras</a>
+      <a href="admin-reviews.html">Reviews</a>
+      <a href="admin-website.html">Website</a>
+      <a href="admin-settings.html">Store Settings</a>
+      <a href="admin-orders.html">Orders</a>
+    </nav>
+  </header>
+
+  <main>
+    <form class="card" id="catForm" novalidate>
+      <div class="card-head">
+        <div>
+          <h2 id="formTitle">Add a category</h2>
+          <p class="sub">Categories appear as buttons on the app's Foods page, in the order you set.</p>
+        </div>
+      </div>
+      <div class="editing-banner" id="editingBanner">✏️ Editing <span id="editingName"></span></div>
+      <div class="grid grid-3">
+        <div class="field">
+          <label for="name">Name <span class="req">*</span></label>
+          <input type="text" id="name" maxlength="40" placeholder="e.g. Nigerian Dishes">
+        </div>
+        <div class="field">
+          <label for="emoji">Emoji</label>
+          <input type="text" id="emoji" maxlength="8" placeholder="e.g. 🍲">
+        </div>
+        <div class="field">
+          <label for="order">Position</label>
+          <input type="number" id="order" min="1" placeholder="1 = first">
+          <div class="hint">Lower numbers show first.</div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="submitBtn">Add category</button>
+        <button type="button" class="btn btn-secondary" id="cancelBtn" hidden>Cancel editing</button>
+      </div>
+    </form>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>All categories</h2>
+          <p class="sub">A category can only be deleted once it has no dishes.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Position</th>
+              <th>Category</th>
+              <th>Dishes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="catList">
+            <tr><td colspan="4" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let categories = [];
+    let foods = [];
+    let editingId = null;
+
+    db.collection("categories").onSnapshot((snap) => {
+      categories = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(b.name));
+      render();
+    }, (err) => toast("Couldn't load categories: " + err.message, "error"));
+
+    db.collection("foods").onSnapshot((snap) => {
+      foods = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      render();
+    }, (err) => toast("Couldn't load dishes: " + err.message, "error"));
+
+    // Older dishes only stored the category name, so count those too.
+    function dishesIn(cat) {
+      return foods.filter((f) => f.categoryId === cat.id || (!f.categoryId && f.category === cat.name));
+    }
+
+    function render() {
+      const body = $("catList");
+      if (!categories.length) {
+        body.innerHTML = `<tr><td colspan="4" class="empty">No categories yet — add your first one above.</td></tr>`;
+        return;
+      }
+      body.innerHTML = categories.map((c) => {
+        const count = dishesIn(c).length;
+        return `
+          <tr>
+            <td>${c.order ?? "—"}</td>
+            <td><strong>${esc(`${c.emoji || ""} ${c.name}`.trim())}</strong></td>
+            <td>${count}</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-secondary btn-sm" data-action="edit" data-id="${esc(c.id)}">Edit</button>
+                <button class="btn btn-danger btn-sm" data-action="delete" data-id="${esc(c.id)}"
+                  ${count ? `title="Move or delete its ${count} dish(es) first"` : ""}>Delete</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join("");
+    }
+
+    $("catForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = $("name").value.trim();
+      const emoji = $("emoji").value.trim();
+      const order = numOrNull($("order").value) ?? (Math.max(0, ...categories.map((c) => c.order || 0)) + 1);
+
+      if (!name) return toast("Enter a category name", "error");
+      const clash = categories.find((c) => c.name.toLowerCase() === name.toLowerCase() && c.id !== editingId);
+      if (clash) return toast("A category with that name already exists", "error");
+
+      $("submitBtn").disabled = true;
+      try {
+        if (editingId) {
+          const cat = categories.find((c) => c.id === editingId);
+          const batch = db.batch();
+          batch.update(db.collection("categories").doc(editingId), { name, emoji, order, updatedAt: serverTime() });
+          // keep the category name stored on each dish in sync (used in admin lists/orders)
+          if (cat && cat.name !== name) {
+            dishesIn(cat).forEach((f) => batch.update(db.collection("foods").doc(f.id), { category: name, categoryId: editingId }));
+          }
+          await batch.commit();
+          toast(`Category "${name}" updated`);
+        } else {
+          await db.collection("categories").add({ name, emoji, order, createdAt: serverTime() });
+          toast(`Category "${name}" added`);
+        }
+        resetForm();
+      } catch (err) {
+        toast("Couldn't save: " + err.message, "error");
+      } finally {
+        $("submitBtn").disabled = false;
+      }
+    });
+
+    function resetForm() {
+      editingId = null;
+      $("catForm").reset();
+      $("formTitle").textContent = "Add a category";
+      $("submitBtn").textContent = "Add category";
+      $("cancelBtn").hidden = true;
+      $("editingBanner").classList.remove("show");
+    }
+    $("cancelBtn").onclick = resetForm;
+
+    $("catList").addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
+      const cat = categories.find((c) => c.id === btn.dataset.id);
+      if (!cat) return;
+
+      if (btn.dataset.action === "edit") {
+        editingId = cat.id;
+        $("name").value = cat.name || "";
+        $("emoji").value = cat.emoji || "";
+        $("order").value = cat.order ?? "";
+        $("formTitle").textContent = "Edit category";
+        $("editingName").textContent = `"${cat.name}"`;
+        $("editingBanner").classList.add("show");
+        $("submitBtn").textContent = "Save changes";
+        $("cancelBtn").hidden = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      if (btn.dataset.action === "delete") {
+        const count = dishesIn(cat).length;
+        if (count) return toast(`"${cat.name}" still has ${count} dish(es). Move them to another category or delete them first.`, "error");
+        if (!confirm(`Delete the category "${cat.name}"?`)) return;
+        try {
+          await db.collection("categories").doc(cat.id).delete();
+          if (editingId === cat.id) resetForm();
+          toast(`Category "${cat.name}" deleted`);
+        } catch (err) {
+          toast("Couldn't delete: " + err.message, "error");
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>
