@@ -262,15 +262,26 @@
           usersList.innerHTML = "";
           snapshot.forEach((doc) => {
             const u = doc.data();
-            usersList.innerHTML += `
-          <tr>
-            <td>${u.username || "-"}</td>
-            <td>${u.email || "-"}</td>
-            <td class="actions">
-              <button class="view-orders" onclick="viewOrders('${doc.id}')">View Orders</button>
-            </td>
-          </tr>
-        `;
+            const tr = document.createElement("tr");
+
+            const tdName = document.createElement("td");
+            tdName.textContent = u.username || "-";
+
+            const tdEmail = document.createElement("td");
+            tdEmail.textContent = u.email || "-";
+
+            const tdActions = document.createElement("td");
+            tdActions.className = "actions";
+            const btn = document.createElement("button");
+            btn.className = "view-orders";
+            btn.textContent = "View Orders";
+            btn.addEventListener("click", () => viewOrders(doc.id));
+            tdActions.appendChild(btn);
+
+            tr.appendChild(tdName);
+            tr.appendChild(tdEmail);
+            tr.appendChild(tdActions);
+            usersList.appendChild(tr);
           });
         });
 
