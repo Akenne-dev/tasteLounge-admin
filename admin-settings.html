@@ -9,22 +9,94 @@
     href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
     type="image/x-icon">
   <link rel="stylesheet" href="admin-common.css">
+  <style>
+    .hours {
+      width: auto;
+      max-width: 100%;
+      border-collapse: collapse;
+    }
+
+    .hours td {
+      padding: 6px 8px 6px 0;
+      vertical-align: middle;
+    }
+
+    .hours td:first-child {
+      width: 120px;
+      font-weight: 700;
+    }
+
+    .hours input[type="time"] {
+      width: 130px;
+    }
+
+    .hours .closed-label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .day-open {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .example {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--yellow-soft);
+      color: #7a5a00;
+      font-size: 13px;
+    }
+
+    .steps {
+      margin: 6px 0 14px;
+      padding-left: 20px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .steps code {
+      background: #f3efe9;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    #hoursTable[aria-disabled="true"] {
+      opacity: .45;
+      pointer-events: none;
+    }
+
+    .sticky-save {
+      position: sticky;
+      bottom: 0;
+      background: var(--bg);
+      padding: 12px 0;
+      border-top: 1px solid var(--border);
+      z-index: 5;
+    }
+
+    @media (max-width: 560px) {
+      .hours td:first-child {
+        width: auto;
+      }
+
+      .hours input[type="time"] {
+        width: 100%;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
   <header class="topbar">
     <h1>⚙️ Store Settings</h1>
-    <nav>
-      <a href="admin-dashboard.html">Dashboard</a>
-      <a href="admin-foods.html">Foods</a>
-      <a href="admin-categories.html">Categories</a>
-      <a href="admin-extras.html">Extras</a>
-      <a href="admin-reviews.html">Reviews</a>
-      <a href="admin-website.html">Website</a>
-      <a href="admin-settings.html" class="active">Store Settings</a>
-      <a href="admin-orders.html">Orders</a>
-    </nav>
+    <nav data-admin-nav></nav>
   </header>
 
   <main>
@@ -60,6 +132,131 @@
         </div>
       </section>
 
+      <!-- Opening hours -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Opening hours</h2>
+            <p class="sub">Customers can browse any time, but can only check out while you're open. Also drives the Open/Closed badge on the home page.</p>
+          </div>
+        </div>
+        <div class="switch-row" style="margin-bottom:14px">
+          <label class="switch"><input type="checkbox" id="hoursOn"><span></span></label>
+          <label for="hoursOn"><b>Only take orders during opening hours</b>
+            <div class="hint">Off = you take orders any time (unless you pause them).</div></label>
+        </div>
+        <table class="hours" id="hoursTable">
+          <tbody id="hoursBody"></tbody>
+        </table>
+        <div class="actions" style="margin-top:10px">
+          <button type="button" class="btn btn-secondary btn-sm" id="copyMonday">Copy Monday's hours to every day</button>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px">
+          <div class="field">
+            <label for="timezone">Kitchen time zone</label>
+            <input type="text" id="timezone" list="tzList" placeholder="Africa/Lagos">
+            <datalist id="tzList">
+              <option value="Africa/Lagos"></option>
+              <option value="Africa/Accra"></option>
+              <option value="Africa/Nairobi"></option>
+              <option value="Africa/Johannesburg"></option>
+              <option value="Europe/London"></option>
+            </datalist>
+            <div class="hint">Hours follow the kitchen's clock, whatever time zone the customer is in. Nigeria = Africa/Lagos.</div>
+          </div>
+          <div class="field">
+            <label>Tip</label>
+            <div class="hint" style="margin-top:8px">Closing after midnight? Set the closing time earlier than the opening time, e.g. 18:00 → 02:00.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pause orders -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Pause orders</h2>
+            <p class="sub">For busy times. Staff can also flip this from the Dashboard.</p>
+          </div>
+        </div>
+        <div class="switch-row">
+          <label class="switch"><input type="checkbox" id="ordersPaused"><span></span></label>
+          <label for="ordersPaused"><b>Orders are paused</b>
+            <div class="hint">Checkout is blocked until you switch this off.</div></label>
+        </div>
+        <div class="field" style="margin-top:14px">
+          <label for="pauseMessage">Message customers see while paused</label>
+          <input type="text" id="pauseMessage" maxlength="120" placeholder="e.g. We're very busy — back in 30 minutes!">
+        </div>
+      </section>
+
+      <!-- Loyalty points -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Loyalty points</h2>
+            <p class="sub">Customers earn points on food (not delivery). Points are added when you mark an order <b>Delivered</b>, and can be spent at checkout.</p>
+          </div>
+        </div>
+        <div class="switch-row" style="margin-bottom:14px">
+          <label class="switch"><input type="checkbox" id="loyaltyOn"><span></span></label>
+          <label for="loyaltyOn"><b>Run the loyalty programme</b></label>
+        </div>
+        <div class="grid grid-3" id="loyaltyFields">
+          <div class="field">
+            <label for="earnPerAmount">Customers earn 1 point for every (₦)</label>
+            <input type="number" id="earnPerAmount" min="1" step="50" placeholder="e.g. 100">
+          </div>
+          <div class="field">
+            <label for="pointValue">Each point is worth (₦)</label>
+            <input type="number" id="pointValue" min="0.1" step="0.5" placeholder="e.g. 1">
+          </div>
+          <div class="field">
+            <label for="minRedeem">Points needed before they can be spent</label>
+            <input type="number" id="minRedeem" min="0" step="10" placeholder="e.g. 100">
+          </div>
+        </div>
+        <div class="example" id="loyaltyExample"></div>
+      </section>
+
+      <!-- Payment methods -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Payment methods</h2>
+            <p class="sub">Which Paystack options customers see. Leave all unticked to allow everything switched on in your Paystack account.</p>
+          </div>
+        </div>
+        <div class="checks" id="channels"></div>
+      </section>
+
+      <!-- Photo uploads -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Photo uploads</h2>
+            <p class="sub">Lets you upload dish photos and website pictures instead of pasting links. Uses Cloudinary's free plan.</p>
+          </div>
+        </div>
+        <ol class="steps">
+          <li>Create a free account at <a class="inline-link" href="https://cloudinary.com/users/register_free" target="_blank" rel="noopener">cloudinary.com</a>.</li>
+          <li>On the Cloudinary dashboard, copy your <b>Cloud name</b>.</li>
+          <li>Go to <b>Settings → Upload → Upload presets → Add upload preset</b>, set <b>Signing mode</b> to <code>Unsigned</code>, save, and copy the preset name.</li>
+          <li>Paste both below and press Save.</li>
+        </ol>
+        <div class="grid grid-2">
+          <div class="field">
+            <label for="cloudName">Cloud name</label>
+            <input type="text" id="cloudName" maxlength="60" placeholder="e.g. tastelounge" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="uploadPreset">Upload preset (unsigned)</label>
+            <input type="text" id="uploadPreset" maxlength="60" placeholder="e.g. tl_unsigned" autocomplete="off">
+          </div>
+        </div>
+        <div class="hint">Only admins can see these details.</div>
+      </section>
+
       <section class="card">
         <div class="card-head">
           <div>
@@ -71,7 +268,7 @@
         <button type="button" class="btn btn-secondary btn-sm" id="addDealBtn">+ Add deal</button>
       </section>
 
-      <div class="form-actions" style="margin-top:0">
+      <div class="form-actions sticky-save" style="margin-top:0">
         <button type="submit" class="btn btn-primary" id="saveBtn" disabled>Save settings</button>
         <span class="muted" id="lastSaved" style="align-self:center"></span>
       </div>
@@ -83,10 +280,105 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script src="admin-firebase.js"></script>
   <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
 
   <script>
     const $ = (id) => document.getElementById(id);
     const settingsRef = db.collection("settings").doc("store");
+    const mediaRef = db.collection("adminConfig").doc("media");
+
+    const DAYS = [["mon", "Monday"], ["tue", "Tuesday"], ["wed", "Wednesday"], ["thu", "Thursday"], ["fri", "Friday"], ["sat", "Saturday"], ["sun", "Sunday"]];
+    // Paystack's payment channels (must match TL_PAYMENT_CHANNELS in the app's menu-service.js)
+    const CHANNELS = [
+      ["card", "💳 Card"],
+      ["bank_transfer", "🏦 Bank transfer"],
+      ["ussd", "📱 USSD"],
+      ["bank", "🏛️ Pay with bank app"],
+      ["qr", "🔳 QR code"],
+      ["mobile_money", "📲 Mobile money"],
+    ];
+    const DEFAULT_DAY = { open: "09:00", close: "22:00", closed: false };
+    let loadedPause = { paused: false, message: "" }; // only saved if changed here (staff may pause from the Dashboard)
+
+    /* ---------- opening hours ---------- */
+    function renderHours(hours) {
+      $("hoursBody").innerHTML = DAYS.map(([key, label]) => {
+        const d = { ...DEFAULT_DAY, ...((hours && hours[key]) || {}) };
+        return `<tr data-day="${key}">
+          <td>${label}</td>
+          <td><label class="day-open"><input type="checkbox" class="d-open" ${d.closed ? "" : "checked"}> Open</label></td>
+          <td><input type="time" class="d-from" value="${esc(d.open || "09:00")}" aria-label="${label} opens at" ${d.closed ? "disabled" : ""}></td>
+          <td class="closed-label">to</td>
+          <td><input type="time" class="d-to" value="${esc(d.close || "22:00")}" aria-label="${label} closes at" ${d.closed ? "disabled" : ""}></td>
+        </tr>`;
+      }).join("");
+    }
+
+    $("hoursBody").addEventListener("change", (e) => {
+      if (!e.target.classList.contains("d-open")) return;
+      const row = e.target.closest("tr");
+      row.querySelectorAll('input[type="time"]').forEach((i) => (i.disabled = !e.target.checked));
+    });
+
+    function readHours() {
+      const out = {};
+      $("hoursBody").querySelectorAll("tr").forEach((row) => {
+        const open = row.querySelector(".d-open").checked;
+        out[row.dataset.day] = {
+          open: row.querySelector(".d-from").value,
+          close: row.querySelector(".d-to").value,
+          closed: !open,
+        };
+      });
+      return out;
+    }
+
+    $("copyMonday").onclick = () => {
+      const rows = [...$("hoursBody").querySelectorAll("tr")];
+      const mon = rows[0];
+      rows.slice(1).forEach((row) => {
+        row.querySelector(".d-open").checked = mon.querySelector(".d-open").checked;
+        row.querySelector(".d-from").value = mon.querySelector(".d-from").value;
+        row.querySelector(".d-to").value = mon.querySelector(".d-to").value;
+        row.querySelectorAll('input[type="time"]').forEach((i) => (i.disabled = !mon.querySelector(".d-open").checked));
+      });
+      toast("Copied — remember to save");
+    };
+
+    $("hoursOn").addEventListener("change", syncHoursState);
+    function syncHoursState() {
+      $("hoursTable").setAttribute("aria-disabled", String(!$("hoursOn").checked));
+      $("copyMonday").disabled = !$("hoursOn").checked;
+    }
+
+    /* ---------- loyalty example ---------- */
+    function updateExample() {
+      const per = Number($("earnPerAmount").value) || 0;
+      const worth = Number($("pointValue").value) || 0;
+      const min = Number($("minRedeem").value) || 0;
+      const on = $("loyaltyOn").checked;
+      $("loyaltyFields").style.opacity = on ? "" : ".5";
+      if (!on) {
+        $("loyaltyExample").textContent = "The programme is off — customers don't earn or spend points. Points already earned are kept.";
+        return;
+      }
+      if (per <= 0 || worth <= 0) {
+        $("loyaltyExample").textContent = "Fill in both amounts to switch the programme on.";
+        return;
+      }
+      const pts = Math.floor(10000 / per);
+      $("loyaltyExample").textContent = `Example: a ₦10,000 order earns ${pts.toLocaleString()} points, worth ${naira(pts * worth)} off a later order` +
+        (min > 0 ? ` (customers need ${min.toLocaleString()} points before spending them).` : ".") +
+        ` That's ${((worth / per) * 100).toFixed(1).replace(/\.0$/, "")}% back.`;
+    }
+    ["earnPerAmount", "pointValue", "minRedeem", "loyaltyOn"].forEach((id) => $(id).addEventListener("input", updateExample));
+
+    /* ---------- payment channels ---------- */
+    function renderChannels(selected) {
+      $("channels").innerHTML = CHANNELS.map(([v, l]) => `
+        <label class="check-item ${selected.includes(v) ? "on" : ""}"><input type="checkbox" value="${v}" ${selected.includes(v) ? "checked" : ""}> ${l}</label>`).join("");
+    }
+    $("channels").addEventListener("change", (e) => e.target.closest(".check-item").classList.toggle("on", e.target.checked));
 
     /* ---------- deals repeater ---------- */
     function addDealRow(text = "") {
@@ -137,12 +429,36 @@
     /* ---------- load ---------- */
     async function load() {
       try {
-        const snap = await settingsRef.get();
+        const [snap, mediaSnap] = await Promise.all([settingsRef.get(), mediaRef.get().catch(() => null)]);
         const s = snap.exists ? snap.data() : {};
         $("deliveryFee").value = s.deliveryFee ?? "";
         $("expressFee").value = s.expressFee ?? "";
         $("freeDeliveryOver").value = s.freeDeliveryOver ?? "";
         $("deliveryTime").value = s.deliveryTime || "";
+
+        const hasHours = s.hours && Object.keys(s.hours).length > 0;
+        $("hoursOn").checked = !!hasHours;
+        renderHours(s.hours);
+        syncHoursState();
+        $("timezone").value = s.timezone || "Africa/Lagos";
+
+        $("ordersPaused").checked = !!s.ordersPaused;
+        $("pauseMessage").value = s.pauseMessage || "";
+        loadedPause = { paused: !!s.ordersPaused, message: s.pauseMessage || "" };
+
+        const l = s.loyalty || {};
+        $("loyaltyOn").checked = l.enabled === true;
+        $("earnPerAmount").value = l.earnPerAmount ?? "";
+        $("pointValue").value = l.pointValue ?? "";
+        $("minRedeem").value = l.minRedeem ?? "";
+        updateExample();
+
+        renderChannels(Array.isArray(s.paymentChannels) ? s.paymentChannels : []);
+
+        const m = mediaSnap && mediaSnap.exists ? mediaSnap.data() : {};
+        $("cloudName").value = m.cloudName || "";
+        $("uploadPreset").value = m.uploadPreset || "";
+
         $("dealsList").innerHTML = "";
         (Array.isArray(s.deals) ? s.deals : []).forEach((d) => addDealRow(d));
         updateDealsEmpty();
@@ -154,23 +470,64 @@
       }
     }
 
+    function validTimezone(tz) {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: tz });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
     /* ---------- save ---------- */
     $("settingsForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const loyaltyOn = $("loyaltyOn").checked;
       const data = {
         deliveryFee: Number($("deliveryFee").value) || 0,
         expressFee: Number($("expressFee").value) || 0,
         freeDeliveryOver: Number($("freeDeliveryOver").value) || 0,
         deliveryTime: $("deliveryTime").value.trim(),
+        hours: $("hoursOn").checked ? readHours() : null,
+        timezone: $("timezone").value.trim() || "Africa/Lagos",
+        loyalty: {
+          enabled: loyaltyOn,
+          earnPerAmount: Number($("earnPerAmount").value) || 0,
+          pointValue: Number($("pointValue").value) || 0,
+          minRedeem: Math.max(0, Math.floor(Number($("minRedeem").value) || 0)),
+        },
+        paymentChannels: [...$("channels").querySelectorAll("input:checked")].map((i) => i.value),
         deals: [...document.querySelectorAll(".deal-text")].map((i) => i.value.trim()).filter(Boolean),
         updatedAt: serverTime(),
       };
       if ([data.deliveryFee, data.expressFee, data.freeDeliveryOver].some((n) => n < 0)) {
         return toast("Amounts can't be negative", "error");
       }
+      if (!validTimezone(data.timezone)) return toast(`"${data.timezone}" isn't a time zone — try Africa/Lagos`, "error");
+      if (data.hours) {
+        const bad = DAYS.find(([k]) => !data.hours[k].closed && (!data.hours[k].open || !data.hours[k].close || data.hours[k].open === data.hours[k].close));
+        if (bad) return toast(`Check ${bad[1]}'s hours — opening and closing times are needed and can't be the same`, "error");
+        if (DAYS.every(([k]) => data.hours[k].closed)) return toast("Every day is closed — customers could never order. Open at least one day or switch opening hours off.", "error");
+      }
+      if (loyaltyOn && (data.loyalty.earnPerAmount <= 0 || data.loyalty.pointValue <= 0)) {
+        return toast("To run loyalty points, fill in how much earns a point and what a point is worth", "error");
+      }
+      const paused = $("ordersPaused").checked, pauseMessage = $("pauseMessage").value.trim();
+      if (paused !== loadedPause.paused || pauseMessage !== loadedPause.message) {
+        Object.assign(data, { ordersPaused: paused, pauseMessage });
+        if (paused !== loadedPause.paused) Object.assign(data, { pausedAt: serverTime(), pausedBy: auth.currentUser.email || auth.currentUser.uid });
+      }
+      const cloudName = $("cloudName").value.trim();
+      const uploadPreset = $("uploadPreset").value.trim();
+      if (cloudName && !/^[a-z0-9_-]+$/i.test(cloudName)) return toast("The Cloudinary cloud name can only have letters, numbers, - and _", "error");
+
       $("saveBtn").disabled = true;
       try {
-        await settingsRef.set(data, { merge: true });
+        await Promise.all([
+          settingsRef.set(data, { merge: true }),
+          mediaRef.set({ cloudName, uploadPreset, updatedAt: serverTime() }, { merge: true }),
+        ]);
+        loadedPause = { paused, message: pauseMessage };
         toast("Store settings saved — the app uses them right away");
         $("lastSaved").textContent = "Last saved " + new Date().toLocaleString();
       } catch (err) {
@@ -180,7 +537,7 @@
       }
     });
 
-    load();
+    adminReady.then(load);
   </script>
 </body>
 

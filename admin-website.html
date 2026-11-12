@@ -112,16 +112,7 @@
 
   <header class="topbar">
     <h1>🌐 Website</h1>
-    <nav>
-      <a href="admin-dashboard.html">Dashboard</a>
-      <a href="admin-foods.html">Foods</a>
-      <a href="admin-categories.html">Categories</a>
-      <a href="admin-extras.html">Extras</a>
-      <a href="admin-reviews.html">Reviews</a>
-      <a href="admin-website.html" class="active">Website</a>
-      <a href="admin-settings.html">Store Settings</a>
-      <a href="admin-orders.html">Orders</a>
-    </nav>
+    <nav data-admin-nav></nav>
   </header>
 
   <main>
@@ -143,6 +134,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script src="admin-firebase.js"></script>
   <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
 
   <script>
     /* Each tab edits one Firestore document: site/{id}. The public pages read
@@ -161,9 +153,7 @@
           { title: "Brand", fields: [text("brandName", "Brand name (logo text)")] },
           {
             title: "Opening hours", fields: [
-              { key: "openHour", label: "Opens at (hour, 0–23)", type: "number", min: 0, max: 23, hint: "Drives the Open/Closed badge on the home page." },
-              { key: "closeHour", label: "Closes at (hour, 0–23)", type: "number", min: 0, max: 23, hint: "e.g. 18 = 6 PM" },
-              text("hoursTitle", "Opening hours heading", { span: 2 }),
+              text("hoursTitle", "Opening hours heading", { span: 2, hint: "The text shown on the About page. When customers can actually order (and the Open/Closed badge) is set in Store Settings → Opening hours." }),
               { key: "hours", label: "Opening hours list (About page)", type: "list", span: 2, itemLabel: "Row", addLabel: "+ Add row",
                 fields: [text("days", "Days", { placeholder: "Mon – Fri" }), text("time", "Hours", { placeholder: "9:00 AM – 6:00 PM" })] },
             ],
@@ -298,7 +288,8 @@
         t.value = value || "";
         wrap.append(t);
       } else if (f.type === "image" || f.type === "url" || f.type === "video") {
-        const input = el("input", { type: "url", placeholder: "https://…" });
+        // image/video fields get an "Upload" button (admin-upload.js)
+        const input = el("input", { type: "url", placeholder: "https://…", "data-upload": f.type === "url" ? null : f.type });
         input.value = value || "";
         if (f.type === "url") {
           input.addEventListener("input", () => { obj[f.key] = input.value.trim(); markDirty(); });
@@ -381,7 +372,7 @@
         if (!arr.length) box.append(el("p", { class: "repeater-empty" }, "None yet."));
         arr.forEach((url, i) => {
           const thumb = preview(f.media, url);
-          const input = el("input", { type: "url", placeholder: "https://….mp4" });
+          const input = el("input", { type: "url", placeholder: "https://….mp4", "data-upload": f.media || "video" });
           input.value = url || "";
           input.addEventListener("input", () => { arr[i] = input.value.trim(); thumb.src = arr[i]; markDirty(); });
           box.append(el("div", { class: "repeater-row deal-row" }, [el("div", { class: "thumb-row" }, [thumb, input]), ...moveButtons(arr, i, render)]));
@@ -445,11 +436,6 @@
       const s = SCHEMA[current];
       const out = {};
       s.sections.forEach((sec) => sec.fields.forEach((f) => (out[f.key] = cleanValue(f, data[current][f.key]))));
-      if (current === "general") {
-        for (const k of ["openHour", "closeHour"]) {
-          if (out[k] !== "" && !(out[k] >= 0 && out[k] <= 23)) return toast("Opening hours must be between 0 and 23", "error");
-        }
-      }
       $("saveBtn").disabled = true;
       try {
         await db.collection("site").doc(current).set({ ...out, updatedAt: serverTime() }, { merge: true });

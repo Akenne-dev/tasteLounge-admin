@@ -70,9 +70,30 @@
         color: #fff;
       }
       .status-pending { background: #ff9800; }
-      .status-confirmed { background: #2196f3; }
+      .status-confirmed, .status-processing { background: #2196f3; }
+      .status-out_for_delivery { background: #7e57c2; }
       .status-delivered { background: #4caf50; }
-      .status-cancelled { background: #f44336; }
+      .status-cancelled { background: #9e9e9e; }
+      .item-meta { font-size: 13px; color: #666; margin: -2px 0 6px; }
+      .discount { color: #2e7d32; }
+      .btn-dark { background: #1f1f1f; color: #fff; }
+
+      /* ---------- kitchen ticket ---------- */
+      #ticket { display: none; }
+      @media print {
+        @page { size: 80mm auto; margin: 4mm; }
+        body { background: #fff !important; padding: 0 !important; }
+        body > *:not(#ticket) { display: none !important; }
+        #ticket { display: block !important; width: 72mm; font: 13px/1.35 "Courier New", monospace; color: #000; }
+        #ticket h1 { font-size: 17px; text-align: center; margin: 0 0 2px; }
+        #ticket .c { text-align: center; }
+        #ticket .big { font-size: 22px; font-weight: 700; text-align: center; margin: 6px 0; }
+        #ticket hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+        #ticket .line { display: flex; gap: 6px; font-weight: 700; font-size: 15px; margin-top: 6px; }
+        #ticket .sub { padding-left: 26px; }
+        #ticket .note { padding-left: 26px; font-weight: 700; }
+        #ticket .row2 { display: flex; justify-content: space-between; }
+      }
 
       .action-buttons {
         display: flex;
@@ -116,13 +137,14 @@
       }
     </style>
   </head>
-  <body>
+  <body data-staff>
     <div style="max-width: 600px; margin: auto;">
-      <a class="back-link" href="admin-users.html">⬅️ Back to Users</a>
+      <a class="back-link" href="admin-orders.html">⬅️ Back to Orders</a>
     </div>
     <div class="receipt" id="receipt">
       <p>Loading receipt...</p>
     </div>
+    <div id="ticket" aria-hidden="true"></div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
@@ -137,6 +159,7 @@
     </script>
 
     <script src="admin-auth.js"></script>
+    <script src="admin-shell.js"></script>
 
     <script>
       const db = firebase.firestore();
@@ -144,10 +167,12 @@
       const orderId = params.get("id");
       const receiptEl = document.getElementById("receipt");
 
+      const printTicketNow = params.get("ticket") === "1";
+
       if (!orderId) {
         receiptEl.innerHTML = "<p>Invalid order.</p>";
       } else {
-        loadOrder();
+        adminReady.then(loadOrder);
       }
 
       async function loadOrder() {
@@ -167,18 +192,52 @@
             : "";
 
           renderReceipt(order);
+          renderTicket(order);
+          if (printTicketNow) setTimeout(() => window.print(), 300);
         } catch (err) {
           console.error("Error loading order:", err);
           receiptEl.innerHTML = "<p>Error loading order.</p>";
         }
       }
 
+      const STATUS_LABEL = { paid: "Paid", processing: "Processing", out_for_delivery: "Out for delivery", delivered: "Delivered", cancelled: "Cancelled" };
+
       function getStatusClass(status) {
         const s = (status || "pending").toLowerCase();
-        if (s === "confirmed") return "status-confirmed";
-        if (s === "delivered") return "status-delivered";
-        if (s === "cancelled") return "status-cancelled";
+        if (["confirmed", "processing", "out_for_delivery", "delivered", "cancelled"].includes(s)) return "status-" + s;
         return "status-pending";
+      }
+
+      // Kitchen ticket: what to cook, no prices. Printed from this page or "🖨 Ticket" on the orders list.
+      function renderTicket(o) {
+        const when = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
+        const d = o.delivery || o.deliveryInfo || {};
+        const count = (o.items || []).reduce((n, i) => n + (Number(i.qty ?? i.quantity) || 1), 0);
+        document.getElementById("ticket").innerHTML = `
+          <h1>TASTE LOUNGE</h1>
+          <div class="c">KITCHEN TICKET</div>
+          <div class="big">#${escapeHtml(o.id.slice(0, 4).toUpperCase())}</div>
+          <div class="row2"><span>${escapeHtml(when.toLocaleDateString("en-GB"))}</span><span>${escapeHtml(when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }))}</span></div>
+          <div class="c"><b>${o.deliveryType === "express" ? "*** EXPRESS DELIVERY ***" : "Standard delivery"}</b></div>
+          <hr>
+          ${(o.items || []).map((i) => {
+            const qty = Number(i.qty ?? i.quantity) || 1;
+            const base = String(i.name || "").split(" (")[0].split(" + ")[0];
+            return `<div class="line"><span>${qty} x</span><span>${escapeHtml(base)}</span></div>
+              ${i.size ? `<div class="sub">Size: ${escapeHtml(i.size)}</div>` : ""}
+              ${(i.extras || []).length ? `<div class="sub">+ ${escapeHtml(i.extras.join(", "))}</div>` : ""}
+              ${i.note ? `<div class="note">NOTE: ${escapeHtml(i.note)}</div>` : ""}`;
+          }).join("")}
+          <hr>
+          <div class="row2"><span>Items</span><b>${count}</b></div>
+          <div class="row2"><span>Payment</span><b>${o.payment?.status === "success" ? "PAID" : "NOT PAID"}</b></div>
+          <hr>
+          <div>${escapeHtml(d.name || "")}${d.phone ? " · " + escapeHtml(d.phone) : ""}</div>
+          <div>${escapeHtml(d.address || "")}</div>`;
+      }
+
+      function printTicket() {
+        window.print();
       }
 
       function renderReceipt(o) {
@@ -198,11 +257,12 @@
             const note = i.note
               ? `<div style="font-size:13px;color:#a15c00;margin:2px 0 6px;">📝 ${escapeHtml(i.note)}</div>`
               : "";
+            const meta = [i.size ? "Size: " + i.size : "", (i.extras || []).length ? "Extras: " + i.extras.join(", ") : ""].filter(Boolean).join(" · ");
             return `
               <div class="row item">
                 <span>${escapeHtml(i.name)} &times; ${qty}</span>
                 <span>&#8358;${Number(total).toLocaleString()}</span>
-              </div>${note}`;
+              </div>${meta ? `<div class="item-meta">${escapeHtml(meta)}</div>` : ""}${note}`;
           })
           .join("");
 
@@ -216,7 +276,9 @@
 
           <p><strong>Order:</strong> #${escapeHtml(o.id ? o.id.slice(0, 4).toUpperCase() : "-")}</p>
           <p><strong>Date:</strong> ${escapeHtml(orderDate)}</p>
-          <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(status)}">${escapeHtml(status)}</span></p>
+          <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(status)}">${escapeHtml(STATUS_LABEL[status] || status)}</span></p>
+          <p><strong>Delivery:</strong> ${o.deliveryType === "express" ? "⚡ Express" : "Standard"}</p>
+          ${o.payment?.reference ? `<p><strong>Payment ref:</strong> ${escapeHtml(o.payment.reference)}</p>` : ""}
 
           <hr>
 
@@ -235,10 +297,22 @@
             <span>&#8358;${Number(o.pricing?.subtotal || 0).toLocaleString()}</span>
           </div>
 
+          ${Number(o.pricing?.discount) > 0 ? `
+          <div class="row discount">
+            <span>Promo ${o.promo?.code ? "(" + escapeHtml(o.promo.code) + ")" : ""}</span>
+            <span>&minus;&#8358;${Number(o.pricing.discount).toLocaleString()}</span>
+          </div>` : ""}
+
           <div class="row">
             <span>Delivery</span>
             <span>&#8358;${Number(o.pricing?.delivery || 0).toLocaleString()}</span>
           </div>
+
+          ${Number(o.pricing?.pointsDiscount) > 0 ? `
+          <div class="row discount">
+            <span>Loyalty points (${Number(o.loyalty?.redeemed || 0).toLocaleString()})</span>
+            <span>&minus;&#8358;${Number(o.pricing.pointsDiscount).toLocaleString()}</span>
+          </div>` : ""}
 
           <div class="row total">
             <span>Total</span>
@@ -248,6 +322,7 @@
           <br>
 
           <div class="action-buttons">
+            <button class="btn btn-dark" onclick="printTicket()">🖨 Kitchen ticket</button>
             <button class="btn btn-primary" onclick="downloadPDF()">⬇ Download PDF</button>
           </div>
         `;
@@ -337,6 +412,17 @@
         y += 6;
         pdf.text("Delivery", 10, y);
         pdf.text("NGN " + formatMoney(p.delivery), 190, y, { align: "right" });
+
+        if (Number(p.discount) > 0) {
+          y += 6;
+          pdf.text("Promo discount", 10, y);
+          pdf.text("- NGN " + formatMoney(p.discount), 190, y, { align: "right" });
+        }
+        if (Number(p.pointsDiscount) > 0) {
+          y += 6;
+          pdf.text("Points used", 10, y);
+          pdf.text("- NGN " + formatMoney(p.pointsDiscount), 190, y, { align: "right" });
+        }
 
         y += 6;
         pdf.setFont(undefined, "bold");

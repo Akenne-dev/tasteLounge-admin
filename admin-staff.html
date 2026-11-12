@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Staff | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon">
+  <link rel="stylesheet" href="admin-common.css">
+  <style>
+    .can {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      font-size: 13px;
+    }
+
+    .can ul {
+      margin: 6px 0 0;
+      padding-left: 18px;
+      line-height: 1.7;
+    }
+
+    .can h3 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    @media (max-width: 640px) {
+      .can {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    td small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <h1>👥 Staff</h1>
+    <nav data-admin-nav></nav>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Add a staff member</h2>
+          <p class="sub">Staff log in at the same admin login page with the email and password you set here.</p>
+        </div>
+      </div>
+      <div class="can" style="margin-bottom:18px">
+        <div class="pill st-delivered" style="display:block;border-radius:12px;padding:12px 14px;font-weight:400">
+          <h3>✓ Staff can</h3>
+          <ul>
+            <li>See and update orders (Paid → Processing → Out for delivery → Delivered)</li>
+            <li>Print kitchen tickets and download orders to Excel</li>
+            <li>Pause and resume orders from the Dashboard</li>
+            <li>Get the new-order sound and pop-up</li>
+          </ul>
+        </div>
+        <div class="pill st-cancelled" style="display:block;border-radius:12px;padding:12px 14px;font-weight:400">
+          <h3>✕ Staff can't</h3>
+          <ul>
+            <li>Change dishes, prices, extras or categories</li>
+            <li>Create promo codes or change store settings</li>
+            <li>See sales reports, customers or other staff</li>
+            <li>Edit the website</li>
+          </ul>
+        </div>
+      </div>
+      <form id="staffForm" novalidate>
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="name">Name <span class="req">*</span></label>
+            <input type="text" id="name" maxlength="60" placeholder="e.g. Tunde (kitchen)" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="email">Email <span class="req">*</span></label>
+            <input type="email" id="email" maxlength="120" placeholder="staff@example.com" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="password">Temporary password <span class="req">*</span></label>
+            <input type="text" id="password" minlength="8" maxlength="64" placeholder="At least 8 characters" autocomplete="off">
+            <div class="hint">Share it with them privately.</div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="addBtn">Add staff member</button>
+          <button type="button" class="btn btn-secondary" id="genBtn">Make a password for me</button>
+        </div>
+        <p class="hint">Already a Taste Lounge customer? Enter their email — they keep their own password and the password box is ignored.</p>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Your staff</h2>
+          <p class="sub">Removing someone takes away their access straight away (their login still works for the customer app).</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Name</th><th>Email</th><th>Added</th><th>Access</th><th></th></tr></thead>
+          <tbody id="staffList"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const staffRef = db.collection("staff");
+
+    // A second Firebase connection, so creating a staff login doesn't sign *you* out.
+    function creatorAuth() {
+      const existing = firebase.apps.find((a) => a.name === "staff-creator");
+      const app = existing || firebase.initializeApp(firebase.app().options, "staff-creator");
+      return app.auth();
+    }
+
+    $("genBtn").onclick = () => {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+      const bytes = crypto.getRandomValues(new Uint32Array(10));
+      $("password").value = [...bytes].map((n) => chars[n % chars.length]).join("");
+    };
+
+    async function findCustomerByEmail(email) {
+      const snap = await db.collection("users").where("email", "==", email).limit(1).get();
+      return snap.empty ? null : snap.docs[0].id;
+    }
+
+    $("staffForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = $("name").value.trim();
+      const email = $("email").value.trim().toLowerCase();
+      const password = $("password").value;
+      if (name.length < 2) return toast("Enter the staff member's name", "error");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Enter a valid email", "error");
+
+      $("addBtn").disabled = true;
+      try {
+        let uid = null;
+        let created = false;
+        // existing customer account? just give it staff access
+        uid = await findCustomerByEmail(email);
+        if (!uid) {
+          if (password.length < 8) {
+            toast("Set a temporary password of at least 8 characters", "error");
+            return;
+          }
+          try {
+            const cAuth = creatorAuth();
+            const cred = await cAuth.createUserWithEmailAndPassword(email, password);
+            await cred.user.updateProfile({ displayName: name }).catch(() => { });
+            uid = cred.user.uid;
+            created = true;
+            await cAuth.signOut();
+          } catch (err) {
+            if (err.code === "auth/email-already-in-use") {
+              toast("That email already has a login but no customer profile. Ask them to sign in to the customer app once, then add them again.", "error");
+            } else {
+              toast("Couldn't create the login: " + err.message, "error");
+            }
+            return;
+          }
+        }
+        if ((await db.collection("admins").doc(uid).get().catch(() => null))?.exists) {
+          toast("That person is already an admin", "error");
+          return;
+        }
+        await staffRef.doc(uid).set({
+          name, email, active: true,
+          createdAt: serverTime(),
+          createdBy: auth.currentUser.email || auth.currentUser.uid,
+        });
+        toast(created ? `${name} added — they can log in with the temporary password` : `${name} now has staff access`);
+        $("staffForm").reset();
+      } catch (err) {
+        toast("Couldn't add staff: " + err.message, "error");
+      } finally {
+        $("addBtn").disabled = false;
+      }
+    });
+
+    function render(list) {
+      if (!list.length) {
+        $("staffList").innerHTML = `<tr><td colspan="5" class="empty">No staff yet.</td></tr>`;
+        return;
+      }
+      $("staffList").innerHTML = list.map((s) => `
+        <tr>
+          <td><b>${esc(s.name || "—")}</b></td>
+          <td>${esc(s.email || "—")}</td>
+          <td>${s.createdAt?.toDate ? esc(s.createdAt.toDate().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })) : "—"}
+            ${s.createdBy ? `<small>by ${esc(s.createdBy)}</small>` : ""}</td>
+          <td><label class="switch" title="Access"><input type="checkbox" data-active="${esc(s.id)}" ${s.active !== false ? "checked" : ""} aria-label="Access for ${esc(s.name || s.email)}"><span></span></label></td>
+          <td><button type="button" class="btn btn-danger btn-sm" data-remove="${esc(s.id)}">Remove</button></td>
+        </tr>`).join("");
+    }
+
+    $("staffList").addEventListener("change", async (e) => {
+      const t = e.target.closest("[data-active]");
+      if (!t) return;
+      try {
+        await staffRef.doc(t.dataset.active).update({ active: t.checked });
+        toast(t.checked ? "Access turned on" : "Access turned off");
+      } catch (err) {
+        t.checked = !t.checked;
+        toast("Couldn't change it: " + err.message, "error");
+      }
+    });
+
+    $("staffList").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-remove]");
+      if (!btn) return;
+      if (!confirm("Remove this staff member? They'll lose access to the admin straight away.")) return;
+      try {
+        await staffRef.doc(btn.dataset.remove).delete();
+        toast("Staff member removed");
+      } catch (err) {
+        toast("Couldn't remove: " + err.message, "error");
+      }
+    });
+
+    adminReady.then(() => {
+      staffRef.onSnapshot((snap) => {
+        render(snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)));
+      }, (err) => {
+        $("staffList").innerHTML = `<tr><td colspan="5" class="empty">Couldn't load staff: ${esc(err.message)}</td></tr>`;
+      });
+    });
+  </script>
+</body>
+
+</html>

@@ -1,301 +1,391 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Admin Orders | Taste Lounge</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link
-      rel="shortcut icon"
-      href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
-      type="image/x-icon"
-    />
 
-    <style>
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: bisque;
-        color: #333;
+<head>
+  <meta charset="UTF-8" />
+  <title>Orders | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon" />
+  <link rel="stylesheet" href="admin-common.css">
+  <style>
+    main {
+      max-width: 1400px;
+    }
+
+    .toolbar input[type="search"] {
+      min-width: 240px;
+      flex: 2;
+    }
+
+    .toolbar select,
+    .toolbar input[type="date"] {
+      min-width: 150px;
+      flex: 1;
+    }
+
+    .toolbar label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      flex: 1;
+      min-width: 150px;
+    }
+
+    .summary-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    td .addr {
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    td small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    tr.is-new td {
+      animation: flashRow 2.5s ease;
+    }
+
+    @keyframes flashRow {
+      from {
+        background: #fff3c4;
       }
 
-      header {
-        background: red;
-        color: #fff;
-        padding: 15px 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+      to {
+        background: transparent;
+      }
+    }
+
+    @media (max-width: 860px) {
+      table.data thead {
+        display: none;
       }
 
-      header h1 {
-        margin: 0;
-        font-size: 18px;
+      table.data,
+      table.data tbody,
+      table.data tr,
+      table.data td {
+        display: block;
+        width: 100%;
       }
 
-      header a {
-        color: #fff;
-        text-decoration: none;
-        font-size: 14px;
-      }
-
-      main {
-        padding: 20px;
-      }
-
-      .order {
+      table.data tr {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 12px;
+        padding: 8px 12px;
         background: #fff;
-        border-radius: 6px;
-        padding: 15px;
-        margin-bottom: 15px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
       }
 
-      .order-header {
+      table.data td {
+        border: 0;
+        padding: 6px 0;
         display: flex;
         justify-content: space-between;
-        font-weight: bold;
-        margin-bottom: 10px;
+        gap: 12px;
       }
 
-      .order small {
-        color: #777;
+      table.data td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        color: var(--muted);
+        font-size: 12px;
+        flex: none;
       }
 
-      .order-actions {
-        margin-top: 10px;
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
+      td .addr {
+        max-width: 60vw;
       }
+    }
+  </style>
+</head>
 
-      select {
-        padding: 6px;
+<body data-staff>
+  <header class="topbar">
+    <h1>🧾 Orders</h1>
+    <nav data-admin-nav></nav>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Search order #, name, phone or dish…" aria-label="Search orders">
+        <label>Status
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="active">In progress (not delivered)</option>
+            <option value="paid">Paid</option>
+            <option value="processing">Processing</option>
+            <option value="out_for_delivery">Out for delivery</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+        <label>From <input type="date" id="fromDate"></label>
+        <label>To <input type="date" id="toDate"></label>
+      </div>
+      <div class="summary-line">
+        <span id="summary">Loading orders…</span>
+        <span class="actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="clearBtn">Clear filters</button>
+          <button type="button" class="btn btn-primary btn-sm" id="excelBtn" disabled>⬇ Download Excel</button>
+        </span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Customer</th>
+              <th>Address</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="ordersList">
+            <tr><td colspan="7" class="empty">Loading orders…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const STATUSES = [
+      ["paid", "Paid"],
+      ["processing", "Processing"],
+      ["out_for_delivery", "Out for delivery"],
+      ["delivered", "Delivered"],
+      ["cancelled", "Cancelled"],
+    ];
+    const STATUS_LABEL = Object.fromEntries(STATUSES);
+    const RECENT_LIMIT = 300;
+
+    let role = "staff";
+    let orders = [];        // [{ id, ...data }] from the live query
+    let users = {};         // uid -> { username, email } (admins only)
+    let unsubscribe = null;
+    let firstLoad = true;
+
+    const shortId = (id) => id.slice(0, 4).toUpperCase();
+    const itemCount = (o) => (o.items || []).reduce((n, i) => n + (Number(i.quantity ?? i.qty) || 1), 0);
+    const placedAt = (o) => (o.createdAt && o.createdAt.toDate ? o.createdAt.toDate() : null);
+
+    adminReady.then(async (info) => {
+      role = info.role;
+      if (role === "admin") {
+        // customer emails (staff see the delivery name and phone on the order)
+        try {
+          const snap = await db.collection("users").get();
+          snap.forEach((d) => (users[d.id] = { username: d.data().username || d.data().name || "", email: d.data().email || "" }));
+        } catch (err) {
+          console.warn("Customers unavailable:", err.message);
+        }
       }
+      listen();
+    });
 
-      button {
-        padding: 6px 10px;
-        border: none;
-        border-radius: 4px;
-        background: #e53935;
-        color: #fff;
-        cursor: pointer;
-      }
-
-      .status {
-        font-weight: bold;
-        text-transform: capitalize;
-      }
-
-      @media (max-width: 768px) {
-        table,
-        thead,
-        tbody,
-        th,
-        td,
-        tr {
-          display: block;
-          width: 100%;
-        }
-
-        thead {
-          display: none;
-        }
-
-        tbody tr {
-          background: #fff;
-          border-radius: 8px;
-          margin-bottom: 16px;
-          padding: 12px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-
-        tbody td {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          padding: 6px 0;
-          font-size: 13px;
-          border: none;
-        }
-
-        tbody td::before {
-          content: attr(data-label);
-          font-weight: 600;
-          color: #555;
-          margin-right: 10px;
-          flex-shrink: 0;
-        }
-
-        select,
-        button {
-          width: 100%;
-          font-size: 13px;
-        }
-
-        button {
-          margin-top: 6px;
-        }
-      }
-
-      @media (max-width: 480px) {
-        tbody td {
-          font-size: 12px;
-        }
-
-        button {
-          font-size: 12px;
-          padding: 6px;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>Manage Orders</h1>
-      <a href="admin-dashboard.html">⬅️ Dashboard</a>
-    </header>
-
-    <main>
-      <table
-        border="1"
-        cellpadding="6"
-        cellspacing="0"
-        width="100%"
-        id="ordersTable"
-      >
-        <thead style="background: bisque">
-          <tr>
-            <th>Order ID</th>
-            <th>User Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Address</th>
-            <th>Date</th>
-            <th>Amount (₦)</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="ordersList">
-          <tr>
-            <td colspan="9">Loading orders…</td>
-          </tr>
-        </tbody>
-      </table>
-    </main>
-
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-
-    <script src="admin-auth.js"></script>
-
-    <script>
-      firebase.initializeApp({
-        apiKey: "AIzaSyAW3atuDYr7OeuT2b-Tn_ooD93ZfPqMA4g",
-        authDomain: "taste-lounge-3075.firebaseapp.com",
-        projectId: "taste-lounge-3075",
+    /* ---------- live orders (latest 300, or the chosen dates) ---------- */
+    function listen() {
+      if (unsubscribe) unsubscribe();
+      let q = db.collection("orders").orderBy("createdAt", "desc");
+      const from = $("fromDate").value, to = $("toDate").value;
+      if (from) q = q.where("createdAt", ">=", firebase.firestore.Timestamp.fromDate(new Date(from + "T00:00:00")));
+      if (to) q = q.where("createdAt", "<", firebase.firestore.Timestamp.fromDate(new Date(new Date(to + "T00:00:00").getTime() + 864e5)));
+      q = q.limit(from || to ? 3000 : RECENT_LIMIT);
+      firstLoad = true;
+      unsubscribe = q.onSnapshot((snap) => {
+        const fresh = new Set();
+        if (!firstLoad) snap.docChanges().forEach((c) => c.type === "added" && fresh.add(c.doc.id));
+        firstLoad = false;
+        orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        render(fresh);
+      }, (err) => {
+        console.error(err);
+        $("ordersList").innerHTML = `<tr><td colspan="7" class="empty">Couldn't load orders: ${esc(err.message)}</td></tr>`;
       });
+    }
 
-      const db = firebase.firestore();
-      const ordersList = document.getElementById("ordersList");
-      let usersMap = {};
+    function filtered() {
+      const term = $("search").value.trim().toLowerCase();
+      const status = $("statusFilter").value;
+      return orders.filter((o) => {
+        const st = o.status?.current || "paid";
+        if (status === "active" && (st === "delivered" || st === "cancelled")) return false;
+        if (status && status !== "active" && st !== status) return false;
+        if (!term) return true;
+        const hay = [shortId(o.id), o.id, o.delivery?.name, o.delivery?.phone, o.delivery?.address, users[o.userId]?.email,
+          o.promo?.code, ...(o.items || []).map((i) => i.name)].join(" ").toLowerCase();
+        return hay.includes(term);
+      });
+    }
 
-      async function loadUsers() {
-        try {
-          const usersSnap = await db.collection("users").get();
-          usersSnap.forEach((doc) => {
-            const data = doc.data();
-            usersMap[doc.id] = {
-              username: data.username || "—",
-              email: data.email || "—",
-            };
-          });
-        } catch (err) {
-          console.error("Failed to load users:", err);
-          ordersList.innerHTML = `<tr><td colspan="9">Failed to load users.</td></tr>`;
-        }
+    function render(fresh = new Set()) {
+      const list = filtered();
+      const paid = list.filter((o) => o.payment?.status === "success" && o.status?.current !== "cancelled");
+      const total = paid.reduce((s, o) => s + (Number(o.pricing?.total) || 0), 0);
+      const range = $("fromDate").value || $("toDate").value ? "" : ` (latest ${RECENT_LIMIT} — pick dates to see older orders)`;
+      $("summary").textContent = `${list.length} order${list.length === 1 ? "" : "s"} · ${naira(total)} paid${orders.length >= RECENT_LIMIT ? range : ""}`;
+      $("excelBtn").disabled = !list.length;
+
+      if (!list.length) {
+        $("ordersList").innerHTML = `<tr><td colspan="7" class="empty">No orders match.</td></tr>`;
+        return;
       }
-
-      async function loadOrders() {
-        await loadUsers();
-
-        db.collection("orders")
-          .orderBy("createdAt", "desc")
-          .onSnapshot((snapshot) => {
-            if (snapshot.empty) {
-              ordersList.innerHTML = `<tr><td colspan="9">No orders found.</td></tr>`;
-              return;
-            }
-
-            ordersList.innerHTML = "";
-
-            snapshot.forEach((doc) => {
-              const o = doc.data();
-              const userInfo = usersMap[o.userId] || {
-                username: "—",
-                email: "—",
-              };
-              ordersList.innerHTML += renderOrderRow(
-                doc.id,
-                o,
-                userInfo.username,
-                userInfo.email,
-              );
-            });
-          });
-      }
-
-      function renderOrderRow(id, o, userName, userEmail) {
-        const date = o.createdAt?.toDate
-          ? o.createdAt.toDate().toLocaleString()
-          : "—";
-        const delivery = o.delivery || {};
-        const total = Number(o.pricing?.total) || 0;
-        const currentStatus = o.status?.current || "paid";
-
+      $("ordersList").innerHTML = list.map((o) => {
+        const st = o.status?.current || "paid";
+        const when = placedAt(o);
+        const d = o.delivery || {};
+        const email = users[o.userId]?.email;
+        const items = (o.items || []).map((i) => `${Number(i.quantity ?? i.qty) || 1}× ${i.name}`).join("\n");
         return `
-        <tr>
-          <td>${id.slice(0, 4).toUpperCase()}</td>
-          <td>${userName}</td>
-          <td>${userEmail}</td>
-          <td>${delivery.phone || "-"}</td>
-          <td>${delivery.address || "-"}</td>
-          <td>${date}</td>
-          <td>${total.toLocaleString()}</td>
-          <td>
-            <select id="status-${id}">
-              <option value="paid" ${currentStatus === "paid" ? "selected" : ""}>Paid</option>
-              <option value="processing" ${currentStatus === "processing" ? "selected" : ""}>Processing</option>
-              <option value="out_for_delivery" ${currentStatus === "out_for_delivery" ? "selected" : ""}>Out for delivery</option>
-              <option value="delivered" ${currentStatus === "delivered" ? "selected" : ""}>Delivered</option>
-            </select>
-          </td>
-          <td>
-            <button onclick="updateStatus('${id}')">Update</button>
-          </td>
-        </tr>
-      `;
+          <tr class="${fresh.has(o.id) ? "is-new" : ""}">
+            <td data-label="Order"><b>#${esc(shortId(o.id))}</b>${o.deliveryType === "express" ? ' <span class="pill st-paid">⚡ Express</span>' : ""}
+              <small>${when ? esc(when.toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })) : "—"}</small></td>
+            <td data-label="Customer">${esc(d.name || users[o.userId]?.username || "—")}
+              <small>${esc(d.phone || "")}${email ? " · " + esc(email) : ""}</small></td>
+            <td data-label="Address"><div class="addr" title="${esc(d.address || "")}">${esc(d.address || "—")}</div></td>
+            <td data-label="Items" title="${esc(items)}">${itemCount(o)}</td>
+            <td data-label="Total"><b>${naira(o.pricing?.total)}</b>${o.promo?.code ? `<small>🏷️ ${esc(o.promo.code)}</small>` : ""}</td>
+            <td data-label="Status">
+              <select class="status-select st-${esc(st)}" data-status="${esc(o.id)}" aria-label="Status of order #${esc(shortId(o.id))}">
+                ${STATUSES.map(([v, l]) => `<option value="${v}" ${v === st ? "selected" : ""}>${l}</option>`).join("")}
+              </select>
+            </td>
+            <td data-label="">
+              <span class="actions">
+                <a class="btn btn-secondary btn-sm" href="order-details.html?id=${encodeURIComponent(o.id)}">View</a>
+                <a class="btn btn-secondary btn-sm" href="order-details.html?id=${encodeURIComponent(o.id)}&ticket=1" target="_blank" rel="noopener" title="Print kitchen ticket">🖨 Ticket</a>
+              </span>
+            </td>
+          </tr>`;
+      }).join("");
+    }
+
+    /* ---------- status changes save straight away ---------- */
+    $("ordersList").addEventListener("change", async (e) => {
+      const select = e.target.closest("[data-status]");
+      if (!select) return;
+      const id = select.dataset.status;
+      const order = orders.find((o) => o.id === id);
+      const before = order?.status?.current || "paid";
+      const next = select.value;
+      if (next === "cancelled" && !confirm(`Cancel order #${shortId(id)}? The customer will see it as cancelled. (Refunds are done in your Paystack dashboard.)`)) {
+        select.value = before;
+        return;
       }
-
-      async function updateStatus(orderId) {
-        const select = document.getElementById(`status-${orderId}`);
-        const newStatus = select.value;
-
-        try {
-          await db.collection("orders").doc(orderId).update({
-            "status.current": newStatus,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          });
-
-          alert("Order status updated");
-        } catch (err) {
-          console.error(err);
-          alert("Failed to update order");
-        }
+      select.disabled = true;
+      try {
+        await db.collection("orders").doc(id).update({ "status.current": next, updatedAt: serverTime() });
+        toast(`Order #${shortId(id)} → ${STATUS_LABEL[next]}`);
+      } catch (err) {
+        select.value = before;
+        toast("Couldn't update the order: " + err.message, "error");
+      } finally {
+        select.disabled = false;
       }
+    });
 
-      loadOrders();
-    </script>
-  </body>
+    ["search", "statusFilter"].forEach((id) => $(id).addEventListener("input", () => render()));
+    ["fromDate", "toDate"].forEach((id) => $(id).addEventListener("change", listen));
+    $("clearBtn").onclick = () => {
+      $("search").value = "";
+      $("statusFilter").value = "";
+      const hadDates = $("fromDate").value || $("toDate").value;
+      $("fromDate").value = "";
+      $("toDate").value = "";
+      hadDates ? listen() : render();
+    };
+
+    /* ---------- Excel download (the orders currently shown) ---------- */
+    $("excelBtn").onclick = () => {
+      if (typeof XLSX === "undefined") return toast("The Excel tool didn't load — check your connection and refresh.", "error");
+      const list = filtered();
+      const date = (o) => placedAt(o);
+      const orderRows = list.map((o) => {
+        const d = date(o), p = o.pricing || {}, del = o.delivery || {};
+        return {
+          "Order #": shortId(o.id),
+          "Date": d ? d.toLocaleDateString("en-GB") : "",
+          "Time": d ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "",
+          "Customer": del.name || users[o.userId]?.username || "",
+          ...(role === "admin" ? { "Email": users[o.userId]?.email || "" } : {}),
+          "Phone": del.phone || "",
+          "Address": del.address || "",
+          "Delivery": o.deliveryType === "express" ? "Express" : "Standard",
+          "Items": (o.items || []).map((i) => `${Number(i.quantity ?? i.qty) || 1}x ${i.name}`).join("; "),
+          "Item count": itemCount(o),
+          "Subtotal (₦)": Number(p.subtotal) || 0,
+          "Promo code": o.promo?.code || "",
+          "Promo discount (₦)": Number(p.discount) || 0,
+          "Delivery fee (₦)": Number(p.delivery) || 0,
+          "Points used": Number(o.loyalty?.redeemed) || 0,
+          "Points discount (₦)": Number(p.pointsDiscount) || 0,
+          "Total (₦)": Number(p.total) || 0,
+          "Payment ref": o.payment?.reference || "",
+          "Payment": o.payment?.status || "",
+          "Status": STATUS_LABEL[o.status?.current || "paid"] || o.status?.current || "",
+          "Order ID": o.id,
+        };
+      });
+      const itemRows = [];
+      list.forEach((o) => (o.items || []).forEach((i) => {
+        const d = date(o), qty = Number(i.quantity ?? i.qty) || 1, price = Number(i.price) || 0;
+        itemRows.push({
+          "Order #": shortId(o.id),
+          "Date": d ? d.toLocaleDateString("en-GB") : "",
+          "Dish": i.name || "",
+          "Size": i.size || "",
+          "Extras": (i.extras || []).join(", "),
+          "Note": i.note || "",
+          "Qty": qty,
+          "Unit price (₦)": price,
+          "Line total (₦)": price * qty,
+          "Status": STATUS_LABEL[o.status?.current || "paid"] || "",
+        });
+      }));
+      const wb = XLSX.utils.book_new();
+      const s1 = XLSX.utils.json_to_sheet(orderRows);
+      const s2 = XLSX.utils.json_to_sheet(itemRows);
+      s1["!cols"] = Object.keys(orderRows[0] || {}).map((k) => ({ wch: ["Items", "Address"].includes(k) ? 40 : Math.max(10, k.length + 2) }));
+      s2["!cols"] = Object.keys(itemRows[0] || {}).map((k) => ({ wch: k === "Dish" ? 34 : Math.max(10, k.length + 2) }));
+      XLSX.utils.book_append_sheet(wb, s1, "Orders");
+      XLSX.utils.book_append_sheet(wb, s2, "Items");
+      const stamp = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `taste-lounge-orders-${stamp}.xlsx`);
+      toast(`Downloaded ${list.length} order${list.length === 1 ? "" : "s"}`);
+    };
+  </script>
+</body>
+
 </html>

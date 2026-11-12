@@ -15,16 +15,7 @@
 
   <header class="topbar">
     <h1>🗂️ Categories</h1>
-    <nav>
-      <a href="admin-dashboard.html">Dashboard</a>
-      <a href="admin-foods.html">Foods</a>
-      <a href="admin-categories.html" class="active">Categories</a>
-      <a href="admin-extras.html">Extras</a>
-      <a href="admin-reviews.html">Reviews</a>
-      <a href="admin-website.html">Website</a>
-      <a href="admin-settings.html">Store Settings</a>
-      <a href="admin-orders.html">Orders</a>
-    </nav>
+    <nav data-admin-nav></nav>
   </header>
 
   <main>
@@ -87,6 +78,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script src="admin-firebase.js"></script>
   <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
 
   <script>
     const $ = (id) => document.getElementById(id);

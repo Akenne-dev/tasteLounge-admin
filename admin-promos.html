@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Promo Codes | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon">
+  <link rel="stylesheet" href="admin-common.css">
+  <style>
+    .code {
+      font-family: "Courier New", monospace;
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: .04em;
+    }
+
+    #code {
+      text-transform: uppercase;
+      font-family: "Courier New", monospace;
+      font-weight: 700;
+      letter-spacing: .05em;
+    }
+
+    .preview {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border: 1.5px dashed var(--green);
+      border-radius: 10px;
+      background: var(--green-soft);
+      color: #1b5e20;
+      font-size: 14px;
+    }
+
+    td small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .usage-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: #eee;
+      margin-top: 4px;
+      overflow: hidden;
+      width: 90px;
+    }
+
+    .usage-bar span {
+      display: block;
+      height: 100%;
+      background: var(--red);
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <h1>🏷️ Promo Codes</h1>
+    <nav data-admin-nav></nav>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="editing-banner" id="editingBanner">✏️ Editing <span class="code" id="editingCode"></span> — the code itself can't be renamed.</div>
+      <div class="card-head">
+        <div>
+          <h2 id="formTitle">New promo code</h2>
+          <p class="sub">Customers type the code at checkout. Discounts apply to the food (not delivery), and can never make an order free.</p>
+        </div>
+      </div>
+      <form id="promoForm" novalidate>
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="code">Code <span class="req">*</span></label>
+            <input type="text" id="code" maxlength="20" placeholder="e.g. WELCOME10" autocomplete="off">
+            <div class="hint">Letters, numbers, - and _ (3–20 characters).</div>
+          </div>
+          <div class="field">
+            <label for="type">Type of discount</label>
+            <select id="type">
+              <option value="percent">Percentage off the food</option>
+              <option value="fixed">Fixed amount off (₦)</option>
+              <option value="free_delivery">Free delivery</option>
+            </select>
+          </div>
+          <div class="field" id="valueField">
+            <label for="value"><span id="valueLabel">Percent off</span> <span class="req">*</span></label>
+            <input type="number" id="value" min="1" step="1" placeholder="e.g. 10">
+          </div>
+          <div class="field" id="maxField">
+            <label for="maxDiscount">Maximum discount (₦) — optional</label>
+            <input type="number" id="maxDiscount" min="0" step="100" placeholder="e.g. 2000">
+            <div class="hint">Caps a percentage discount on big orders.</div>
+          </div>
+          <div class="field">
+            <label for="minOrder">Minimum food order (₦) — optional</label>
+            <input type="number" id="minOrder" min="0" step="500" placeholder="e.g. 5000">
+          </div>
+          <div class="field">
+            <label for="usageLimit">Total uses allowed — optional</label>
+            <input type="number" id="usageLimit" min="0" step="1" placeholder="Unlimited">
+            <div class="hint">e.g. 50 = only the first 50 orders get it.</div>
+          </div>
+          <div class="field">
+            <label for="startsAt">Starts on — optional</label>
+            <input type="date" id="startsAt">
+          </div>
+          <div class="field">
+            <label for="expiresAt">Ends after — optional</label>
+            <input type="date" id="expiresAt">
+            <div class="hint">The code works until the end of this day.</div>
+          </div>
+          <div class="field">
+            <label for="description">Short description for customers — optional</label>
+            <input type="text" id="description" maxlength="60" placeholder="e.g. 10% off your first order">
+          </div>
+        </div>
+        <div class="checks" style="margin-top:14px">
+          <label class="check-item on"><input type="checkbox" id="active" checked> Active (customers can use it)</label>
+          <label class="check-item"><input type="checkbox" id="oncePerCustomer"> One use per customer</label>
+        </div>
+        <div class="preview" id="preview"></div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="saveBtn">Create promo code</button>
+          <button type="button" class="btn btn-secondary" id="cancelEdit" hidden>Cancel editing</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Your promo codes</h2>
+          <p class="sub">Switch a code off any time. "Used" counts paid orders that used it.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr><th>Code</th><th>Offer</th><th>Conditions</th><th>Used</th><th>Dates</th><th>Active</th><th></th></tr>
+          </thead>
+          <tbody id="promoList"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const promosRef = db.collection("promos");
+    let promos = [];
+    let editing = null; // code being edited
+
+    const toDateInput = (ts) => {
+      if (!ts || !ts.toDate) return "";
+      const d = ts.toDate();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
+    const fromDateInput = (v, endOfDay) => (v ? firebase.firestore.Timestamp.fromDate(new Date(v + (endOfDay ? "T23:59:59" : "T00:00:00"))) : null);
+    const niceDate = (ts) => (ts && ts.toDate ? ts.toDate().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
+
+    function offerText(p) {
+      if (p.type === "percent") return `${p.value}% off food${Number(p.maxDiscount) > 0 ? ` (up to ${naira(p.maxDiscount)})` : ""}`;
+      if (p.type === "fixed") return `${naira(p.value)} off food`;
+      return "Free delivery";
+    }
+
+    function conditionsText(p) {
+      const parts = [];
+      if (Number(p.minOrder) > 0) parts.push(`Food over ${naira(p.minOrder)}`);
+      if (p.oncePerCustomer) parts.push("One per customer");
+      return parts.join(" · ") || "None";
+    }
+
+    function stateOf(p) {
+      const now = Date.now();
+      const ms = (ts) => (ts && ts.toMillis ? ts.toMillis() : 0);
+      if (p.active === false) return ["Off", "badge-grey"];
+      if (ms(p.expiresAt) && ms(p.expiresAt) < now) return ["Expired", "badge-grey"];
+      if (ms(p.startsAt) && ms(p.startsAt) > now) return ["Scheduled", "badge-yellow"];
+      if (Number(p.usageLimit) > 0 && (Number(p.usedCount) || 0) >= Number(p.usageLimit)) return ["Used up", "badge-grey"];
+      return ["Live", "badge-green"];
+    }
+
+    /* ---------- form ---------- */
+    function syncType() {
+      const t = $("type").value;
+      $("valueField").hidden = t === "free_delivery";
+      $("maxField").hidden = t !== "percent";
+      $("valueLabel").textContent = t === "percent" ? "Percent off" : "Amount off (₦)";
+      $("value").max = t === "percent" ? 100 : "";
+      updatePreview();
+    }
+    $("type").addEventListener("change", syncType);
+
+    function readForm() {
+      const type = $("type").value;
+      return {
+        code: $("code").value.trim().toUpperCase().replace(/\s+/g, ""),
+        type,
+        value: type === "free_delivery" ? 0 : Number($("value").value) || 0,
+        maxDiscount: type === "percent" ? Number($("maxDiscount").value) || 0 : 0,
+        minOrder: Number($("minOrder").value) || 0,
+        usageLimit: Math.max(0, Math.floor(Number($("usageLimit").value) || 0)),
+        startsAt: fromDateInput($("startsAt").value, false),
+        expiresAt: fromDateInput($("expiresAt").value, true),
+        description: $("description").value.trim(),
+        active: $("active").checked,
+        oncePerCustomer: $("oncePerCustomer").checked,
+      };
+    }
+
+    function updatePreview() {
+      const p = readForm();
+      const code = p.code || "CODE";
+      $("preview").textContent = `Customers see: ✓ ${code} — ${p.description || offerText(p)}` +
+        (conditionsText(p) !== "None" ? `  ·  ${conditionsText(p)}` : "") +
+        (p.usageLimit ? `  ·  first ${p.usageLimit} uses` : "");
+    }
+    $("promoForm").addEventListener("input", updatePreview);
+    $("promoForm").addEventListener("change", (e) => {
+      if (e.target.type === "checkbox") e.target.closest(".check-item").classList.toggle("on", e.target.checked);
+    });
+
+    function validate(p) {
+      if (!/^[A-Z0-9_-]{3,20}$/.test(p.code)) return "The code needs 3–20 letters, numbers, - or _";
+      if (p.type === "percent" && !(p.value > 0 && p.value <= 100)) return "Percent off must be between 1 and 100";
+      if (p.type === "fixed" && !(p.value > 0)) return "Enter the amount off";
+      if ([p.maxDiscount, p.minOrder].some((n) => n < 0)) return "Amounts can't be negative";
+      if (p.startsAt && p.expiresAt && p.startsAt.toMillis() > p.expiresAt.toMillis()) return "The end date is before the start date";
+      return "";
+    }
+
+    function resetForm() {
+      editing = null;
+      $("promoForm").reset();
+      $("code").disabled = false;
+      $("active").checked = true;
+      document.querySelectorAll("#promoForm .check-item").forEach((c) => c.classList.toggle("on", c.querySelector("input").checked));
+      $("formTitle").textContent = "New promo code";
+      $("saveBtn").textContent = "Create promo code";
+      $("cancelEdit").hidden = true;
+      $("editingBanner").classList.remove("show");
+      syncType();
+    }
+    $("cancelEdit").onclick = resetForm;
+
+    function startEdit(code) {
+      const p = promos.find((x) => x.code === code);
+      if (!p) return;
+      editing = code;
+      $("code").value = p.code;
+      $("code").disabled = true;
+      $("type").value = p.type || "percent";
+      $("value").value = p.value || "";
+      $("maxDiscount").value = p.maxDiscount || "";
+      $("minOrder").value = p.minOrder || "";
+      $("usageLimit").value = p.usageLimit || "";
+      $("startsAt").value = toDateInput(p.startsAt);
+      $("expiresAt").value = toDateInput(p.expiresAt);
+      $("description").value = p.description || "";
+      $("active").checked = p.active !== false;
+      $("oncePerCustomer").checked = !!p.oncePerCustomer;
+      document.querySelectorAll("#promoForm .check-item").forEach((c) => c.classList.toggle("on", c.querySelector("input").checked));
+      $("formTitle").textContent = "Edit promo code";
+      $("saveBtn").textContent = "Save changes";
+      $("cancelEdit").hidden = false;
+      $("editingCode").textContent = p.code;
+      $("editingBanner").classList.add("show");
+      syncType();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    $("promoForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const p = readForm();
+      const problem = validate(p);
+      if (problem) return toast(problem, "error");
+      const { code, ...fields } = p;
+      $("saveBtn").disabled = true;
+      try {
+        if (editing) {
+          await promosRef.doc(editing).update({ ...fields, updatedAt: serverTime() });
+          toast(`${editing} saved`);
+        } else {
+          const ref = promosRef.doc(code);
+          if ((await ref.get()).exists) {
+            toast(`${code} already exists — pick another code or edit it below`, "error");
+            return;
+          }
+          await ref.set({ ...fields, usedCount: 0, createdAt: serverTime(), updatedAt: serverTime() });
+          toast(`${code} created — customers can use it now`);
+        }
+        resetForm();
+      } catch (err) {
+        toast("Couldn't save: " + err.message, "error");
+      } finally {
+        $("saveBtn").disabled = false;
+      }
+    });
+
+    /* ---------- list ---------- */
+    function render() {
+      if (!promos.length) {
+        $("promoList").innerHTML = `<tr><td colspan="7" class="empty">No promo codes yet — create your first one above.</td></tr>`;
+        return;
+      }
+      $("promoList").innerHTML = promos.map((p) => {
+        const [state, cls] = stateOf(p);
+        const used = Number(p.usedCount) || 0;
+        const limit = Number(p.usageLimit) || 0;
+        const dates = [p.startsAt ? "From " + niceDate(p.startsAt) : "", p.expiresAt ? "Until " + niceDate(p.expiresAt) : ""].filter(Boolean).join("<br>") || "No end date";
+        return `<tr>
+          <td><span class="code">${esc(p.code)}</span><br><span class="badge ${cls}">${state}</span></td>
+          <td>${esc(offerText(p))}${p.description ? `<small>${esc(p.description)}</small>` : ""}</td>
+          <td>${esc(conditionsText(p))}</td>
+          <td>${used.toLocaleString()}${limit ? ` / ${limit.toLocaleString()}<div class="usage-bar"><span style="width:${Math.min(100, (used / limit) * 100)}%"></span></div>` : ""}</td>
+          <td><small style="color:inherit">${dates}</small></td>
+          <td><label class="switch" title="Active"><input type="checkbox" data-toggle="${esc(p.code)}" ${p.active !== false ? "checked" : ""} aria-label="${esc(p.code)} active"><span></span></label></td>
+          <td><span class="actions">
+            <button type="button" class="btn btn-secondary btn-sm" data-edit="${esc(p.code)}">Edit</button>
+            <button type="button" class="btn btn-danger btn-sm" data-delete="${esc(p.code)}">Delete</button>
+          </span></td>
+        </tr>`;
+      }).join("");
+    }
+
+    $("promoList").addEventListener("click", async (e) => {
+      const edit = e.target.closest("[data-edit]");
+      if (edit) return startEdit(edit.dataset.edit);
+      const del = e.target.closest("[data-delete]");
+      if (del) {
+        const code = del.dataset.delete;
+        if (!confirm(`Delete ${code}? Customers won't be able to use it any more. (Past orders keep their discount.)`)) return;
+        try {
+          await promosRef.doc(code).delete();
+          if (editing === code) resetForm();
+          toast(`${code} deleted`);
+        } catch (err) {
+          toast("Couldn't delete: " + err.message, "error");
+        }
+      }
+    });
+
+    $("promoList").addEventListener("change", async (e) => {
+      const toggle = e.target.closest("[data-toggle]");
+      if (!toggle) return;
+      try {
+        await promosRef.doc(toggle.dataset.toggle).update({ active: toggle.checked, updatedAt: serverTime() });
+        toast(`${toggle.dataset.toggle} is ${toggle.checked ? "on" : "off"}`);
+      } catch (err) {
+        toggle.checked = !toggle.checked;
+        toast("Couldn't change it: " + err.message, "error");
+      }
+    });
+
+    adminReady.then(() => {
+      promosRef.onSnapshot((snap) => {
+        promos = snap.docs.map((d) => ({ ...d.data(), code: d.id }))
+          .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        render();
+      }, (err) => {
+        $("promoList").innerHTML = `<tr><td colspan="7" class="empty">Couldn't load promo codes: ${esc(err.message)}</td></tr>`;
+      });
+    });
+    syncType();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Sales | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon">
+  <link rel="stylesheet" href="admin-common.css">
+  <style>
+    /* chart roles (light only — the admin has no dark theme) */
+    .viz {
+      --surface: #ffffff;
+      --ink: #0b0b0b;
+      --ink-2: #52514e;
+      --muted: #898781;
+      --grid: #e1e0d9;
+      --axis: #c3c2b7;
+      --series-1: #2a78d6;
+      --good: #006300;
+      --bad: #b3261e;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .seg {
+      display: inline-flex;
+      border: 1px solid var(--input);
+      border-radius: 999px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .seg button {
+      border: 0;
+      background: none;
+      padding: 8px 14px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text);
+    }
+
+    .seg button[aria-pressed="true"] {
+      background: var(--text);
+      color: #fff;
+    }
+
+    .seg button:focus-visible {
+      outline: 3px solid #FBC02D;
+      outline-offset: -3px;
+    }
+
+    .filters input[type="date"] {
+      width: auto;
+    }
+
+    .kpi .delta {
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .delta.up {
+      color: var(--good);
+    }
+
+    .delta.down {
+      color: var(--bad);
+    }
+
+    .delta.flat {
+      color: var(--muted);
+    }
+
+    .kpi .value {
+      font-variant-numeric: normal;
+    }
+
+    .chart-card h2 {
+      font-size: 16px;
+    }
+
+    .chart {
+      position: relative;
+      width: 100%;
+      transition: opacity .2s;
+    }
+
+    .chart.loading {
+      opacity: .45;
+    }
+
+    .chart svg {
+      display: block;
+      width: 100%;
+      overflow: visible;
+    }
+
+    .chart text {
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    .tick {
+      fill: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bar-label {
+      fill: var(--ink);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .bar-name {
+      fill: var(--ink-2);
+      font-size: 12px;
+    }
+
+    .mark {
+      fill: var(--series-1);
+      transition: opacity .15s;
+    }
+
+    /* the transparent hover area underneath gets the pointer, not the bar or its label */
+    .mark,
+    .bar-label,
+    .bar-name,
+    .tick {
+      pointer-events: none;
+    }
+
+    .hit {
+      fill: transparent;
+      cursor: default;
+      outline: none;
+    }
+
+    .hit:focus-visible + .mark,
+    .hover .mark {
+      opacity: .8;
+    }
+
+    .hit:focus-visible {
+      stroke: #FBC02D;
+      stroke-width: 2;
+    }
+
+    .tip {
+      position: absolute;
+      pointer-events: none;
+      z-index: 10;
+      background: #fff;
+      border: 1px solid rgba(11, 11, 11, .10);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--ink-2);
+      white-space: nowrap;
+      transform: translate(-50%, calc(-100% - 12px));
+    }
+
+    .tip strong {
+      display: block;
+      font-size: 15px;
+      color: var(--ink);
+    }
+
+    .tip .key {
+      display: inline-block;
+      width: 12px;
+      height: 2px;
+      background: var(--series-1);
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 1000px) {
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    details.table-view {
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    details.table-view summary {
+      cursor: pointer;
+      color: var(--red-dark);
+      font-weight: 600;
+    }
+
+    details.table-view table {
+      margin-top: 10px;
+    }
+
+    details.table-view td,
+    details.table-view th {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .empty-chart {
+      padding: 40px 12px;
+      text-align: center;
+      color: var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <h1>📈 Sales</h1>
+    <nav data-admin-nav></nav>
+  </header>
+
+  <main class="viz">
+    <!-- one filter row scopes every number and chart below -->
+    <div class="filters" role="group" aria-label="Date range">
+      <div class="seg" id="presets">
+        <button type="button" data-days="7" aria-pressed="false">Last 7 days</button>
+        <button type="button" data-days="30" aria-pressed="true">Last 30 days</button>
+        <button type="button" data-days="90" aria-pressed="false">Last 90 days</button>
+        <button type="button" data-days="month" aria-pressed="false">This month</button>
+      </div>
+      <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:13px">From <input type="date" id="from"></label>
+      <label class="muted" style="display:flex;gap:6px;align-items:center;font-size:13px">to <input type="date" id="to"></label>
+      <span class="muted" id="rangeNote" style="font-size:13px"></span>
+    </div>
+
+    <section class="kpis" aria-label="Totals for the period">
+      <div class="kpi"><div class="label">Money in</div><div class="value" id="kRevenue">—</div><div class="delta flat" id="dRevenue"></div></div>
+      <div class="kpi"><div class="label">Orders</div><div class="value" id="kOrders">—</div><div class="delta flat" id="dOrders"></div></div>
+      <div class="kpi"><div class="label">Average order size</div><div class="value" id="kAvg">—</div><div class="delta flat" id="dAvg"></div></div>
+      <div class="kpi"><div class="label">Items sold</div><div class="value" id="kItems">—</div><div class="delta flat" id="dItems"></div></div>
+    </section>
+
+    <div class="two-col">
+      <section class="card chart-card">
+        <div class="card-head">
+          <div>
+            <h2>Money in per day</h2>
+            <p class="sub">Paid orders, after discounts, including delivery. Cancelled orders aren't counted.</p>
+          </div>
+        </div>
+        <div class="chart" id="dailyChart"></div>
+        <details class="table-view">
+          <summary>Show daily figures as a table</summary>
+          <div class="table-wrap">
+            <table class="data">
+              <thead><tr><th>Day</th><th>Orders</th><th>Money in</th><th>Average order</th></tr></thead>
+              <tbody id="dailyTable"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section class="card chart-card">
+        <div class="card-head">
+          <div>
+            <h2>Best-selling dishes</h2>
+            <p class="sub">Top 10 by portions sold in this period.</p>
+          </div>
+        </div>
+        <div class="chart" id="topChart"></div>
+        <details class="table-view">
+          <summary>Show all dishes as a table</summary>
+          <div class="table-wrap">
+            <table class="data">
+              <thead><tr><th>Dish</th><th>Sold</th><th>Money in</th></tr></thead>
+              <tbody id="topTable"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const DAY = 864e5;
+
+    let current = { from: null, to: null }; // Date at local midnight, `to` inclusive
+    let data = null; // { days, top, totals, previous }
+
+    /* ---------- date helpers ---------- */
+    const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+    const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const fromInput = (v) => (v ? new Date(v + "T00:00:00") : null);
+    const shortDate = (d) => d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    const longDate = (d) => d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+
+    function compact(n) {
+      const a = Math.abs(n);
+      if (a >= 1e6) return (n / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, "") + "M";
+      if (a >= 1e4) return (n / 1e3).toFixed(a >= 1e5 ? 0 : 1).replace(/\.0$/, "") + "K";
+      return Math.round(n).toLocaleString("en-US");
+    }
+
+    /* ---------- range controls ---------- */
+    function setPreset(value) {
+      const today = midnight(new Date());
+      let from;
+      if (value === "month") from = new Date(today.getFullYear(), today.getMonth(), 1);
+      else from = addDays(today, -(Number(value) - 1));
+      document.querySelectorAll("#presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.days === String(value))));
+      $("from").value = dayKey(from);
+      $("to").value = dayKey(today);
+      load(from, today);
+    }
+
+    $("presets").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-days]");
+      if (b) setPreset(b.dataset.days);
+    });
+
+    ["from", "to"].forEach((id) => $(id).addEventListener("change", () => {
+      const from = fromInput($("from").value), to = fromInput($("to").value);
+      if (!from || !to) return;
+      if (from > to) return toast("The start date is after the end date", "error");
+      if ((to - from) / DAY > 366) return toast("Pick a range of a year or less", "error");
+      document.querySelectorAll("#presets button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+      load(from, to);
+    }));
+
+    /* ---------- data ---------- */
+    const counts = (o) => o.payment?.status === "success" && o.status?.current !== "cancelled";
+    const baseName = (name) => String(name || "Dish").split(" (")[0].split(" + ")[0].trim();
+
+    async function fetchOrders(from, toExclusive) {
+      const snap = await db.collection("orders")
+        .where("createdAt", ">=", firebase.firestore.Timestamp.fromDate(from))
+        .where("createdAt", "<", firebase.firestore.Timestamp.fromDate(toExclusive))
+        .get();
+      return snap.docs.map((d) => d.data()).filter(counts);
+    }
+
+    function totalsOf(orders) {
+      const revenue = orders.reduce((s, o) => s + (Number(o.pricing?.total) || 0), 0);
+      const items = orders.reduce((s, o) => s + (o.items || []).reduce((n, i) => n + (Number(i.quantity ?? i.qty) || 1), 0), 0);
+      return { revenue, orders: orders.length, avg: orders.length ? revenue / orders.length : 0, items };
+    }
+
+    async function load(from, to) {
+      current = { from, to };
+      const spanDays = Math.round((to - from) / DAY) + 1;
+      const end = addDays(to, 1);
+      const prevFrom = addDays(from, -spanDays);
+      $("rangeNote").textContent = `${spanDays} day${spanDays === 1 ? "" : "s"} · compared with the ${spanDays} days before`;
+      document.querySelectorAll(".chart").forEach((c) => c.classList.add("loading"));
+      try {
+        const [orders, previous] = await Promise.all([fetchOrders(from, end), fetchOrders(prevFrom, from)]);
+
+        // one row per day, including days with no sales
+        const days = [];
+        const byKey = new Map();
+        for (let d = new Date(from); d <= to; d = addDays(d, 1)) {
+          const row = { date: new Date(d), revenue: 0, orders: 0 };
+          days.push(row);
+          byKey.set(dayKey(d), row);
+        }
+        orders.forEach((o) => {
+          const row = byKey.get(dayKey(o.createdAt.toDate()));
+          if (!row) return;
+          row.revenue += Number(o.pricing?.total) || 0;
+          row.orders += 1;
+        });
+
+        // dishes: grouped by dish (sizes and extras together)
+        const dishes = new Map();
+        orders.forEach((o) => (o.items || []).forEach((i) => {
+          const key = i.foodId || baseName(i.name).toLowerCase();
+          const qty = Number(i.quantity ?? i.qty) || 1;
+          const d = dishes.get(key) || { name: baseName(i.name), qty: 0, revenue: 0 };
+          d.qty += qty;
+          d.revenue += (Number(i.price) || 0) * qty;
+          dishes.set(key, d);
+        }));
+        const top = [...dishes.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+
+        data = { days, top, totals: totalsOf(orders), previous: totalsOf(previous) };
+        renderAll();
+      } catch (err) {
+        console.error(err);
+        toast("Couldn't load sales: " + err.message, "error");
+      } finally {
+        document.querySelectorAll(".chart").forEach((c) => c.classList.remove("loading"));
+      }
+    }
+
+    /* ---------- stat tiles ---------- */
+    function setDelta(el, now, before, money) {
+      if (!before && !now) {
+        el.textContent = "";
+        return;
+      }
+      if (!before) {
+        el.className = "delta up";
+        el.textContent = "▲ New — nothing in the previous period";
+        return;
+      }
+      const pct = ((now - before) / before) * 100;
+      const dir = Math.abs(pct) < 0.5 ? "flat" : pct > 0 ? "up" : "down";
+      el.className = "delta " + dir;
+      const was = money ? naira(Math.round(before)) : Math.round(before).toLocaleString();
+      el.textContent = `${dir === "up" ? "▲" : dir === "down" ? "▼" : "■"} ${Math.abs(pct).toFixed(0)}% vs previous period (${was})`;
+    }
+
+    function renderTiles() {
+      const t = data.totals, p = data.previous;
+      $("kRevenue").textContent = naira(Math.round(t.revenue));
+      $("kOrders").textContent = t.orders.toLocaleString();
+      $("kAvg").textContent = t.orders ? naira(Math.round(t.avg)) : "—";
+      $("kItems").textContent = t.items.toLocaleString();
+      setDelta($("dRevenue"), t.revenue, p.revenue, true);
+      setDelta($("dOrders"), t.orders, p.orders, false);
+      setDelta($("dAvg"), t.avg, p.avg, true);
+      setDelta($("dItems"), t.items, p.items, false);
+    }
+
+    /* ---------- tiny SVG helpers ---------- */
+    function svgEl(name, attrs = {}, text) {
+      const n = document.createElementNS(SVG_NS, name);
+      Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, v));
+      if (text !== undefined) n.textContent = text;
+      return n;
+    }
+
+    // column: 4px rounded top, square at the baseline
+    function columnPath(x, y, w, h) {
+      const r = Math.min(4, w / 2, h);
+      return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+    }
+
+    // bar: square at the left baseline, 4px rounded right end
+    function barPath(x, y, w, h) {
+      const r = Math.min(4, h / 2, w);
+      return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`;
+    }
+
+    function niceTicks(max, count = 4) {
+      if (max <= 0) return [0, 1];
+      const raw = max / count;
+      const pow = 10 ** Math.floor(Math.log10(raw));
+      const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= raw);
+      const ticks = [];
+      for (let v = 0; v <= max + step * 0.001; v += step) ticks.push(v);
+      if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+      return ticks;
+    }
+
+    function tooltip(container) {
+      let tip = container.querySelector(".tip");
+      if (!tip) {
+        tip = document.createElement("div");
+        tip.className = "tip";
+        tip.hidden = true;
+        container.appendChild(tip);
+      }
+      return {
+        show(x, y, value, label) {
+          tip.replaceChildren();
+          const strong = document.createElement("strong");
+          strong.textContent = value;
+          const line = document.createElement("span");
+          const key = document.createElement("span");
+          key.className = "key";
+          line.append(key, document.createTextNode(label));
+          tip.append(strong, line);
+          tip.hidden = false;
+          const max = container.clientWidth;
+          tip.style.left = Math.max(70, Math.min(max - 70, x)) + "px";
+          tip.style.top = y + "px";
+        },
+        hide() {
+          tip.hidden = true;
+        },
+      };
+    }
+
+    /* ---------- money in per day (columns) ---------- */
+    function renderDaily() {
+      const box = $("dailyChart");
+      box.replaceChildren();
+      const days = data.days;
+      if (!days.some((d) => d.revenue > 0)) {
+        box.innerHTML = `<p class="empty-chart">No paid orders in this period.</p>`;
+        $("dailyTable").innerHTML = "";
+        return;
+      }
+      const W = Math.max(280, box.clientWidth), H = 260;
+      const m = { top: 24, right: 8, bottom: 26, left: 52 };
+      const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
+      const ticks = niceTicks(Math.max(...days.map((d) => d.revenue)));
+      const yMax = ticks[ticks.length - 1];
+      const band = iw / days.length;
+      const colW = Math.max(1, Math.min(24, band - 2)); // ≤24px, 2px air between neighbours
+      const y = (v) => m.top + ih - (v / yMax) * ih;
+
+      const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Money in per day. Use the table below for every value." });
+      ticks.forEach((t) => {
+        svg.append(svgEl("line", { x1: m.left, x2: W - m.right, y1: y(t), y2: y(t), stroke: t === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1, "shape-rendering": "crispEdges" }));
+        svg.append(svgEl("text", { x: m.left - 8, y: y(t) + 4, "text-anchor": "end", class: "tick" }, "₦" + compact(t)));
+      });
+
+      // x labels: about 6 evenly spaced dates
+      const every = Math.max(1, Math.ceil(days.length / 6));
+      days.forEach((d, i) => {
+        if (i % every !== 0 && i !== days.length - 1) return;
+        if (i !== days.length - 1 && days.length - 1 - i < every / 2) return; // avoid crowding the last label
+        svg.append(svgEl("text", { x: m.left + band * i + band / 2, y: H - 6, "text-anchor": "middle", class: "tick" }, shortDate(d.date)));
+      });
+
+      const tip = tooltip(box);
+      const best = days.reduce((a, b) => (b.revenue > a.revenue ? b : a), days[0]);
+      days.forEach((d, i) => {
+        const cx = m.left + band * i + band / 2;
+        const g = svgEl("g");
+        const hit = svgEl("rect", { x: m.left + band * i, y: m.top, width: band, height: ih, class: "hit", tabindex: 0, role: "img",
+          "aria-label": `${longDate(d.date)}: ${naira(Math.round(d.revenue))}, ${d.orders} order${d.orders === 1 ? "" : "s"}` });
+        g.append(hit);
+        if (d.revenue > 0) {
+          const h = Math.max(1, (d.revenue / yMax) * ih);
+          g.append(svgEl("path", { d: columnPath(cx - colW / 2, m.top + ih - h, colW, h), class: "mark" }));
+        }
+        const show = () => {
+          g.classList.add("hover");
+          tip.show(cx, y(d.revenue), naira(Math.round(d.revenue)), `${longDate(d.date)} · ${d.orders} order${d.orders === 1 ? "" : "s"}`);
+        };
+        const hide = () => {
+          g.classList.remove("hover");
+          tip.hide();
+        };
+        hit.addEventListener("pointerenter", show);
+        hit.addEventListener("pointerleave", hide);
+        hit.addEventListener("focus", show);
+        hit.addEventListener("blur", hide);
+        svg.append(g);
+      });
+
+      // label only the best day
+      const bi = days.indexOf(best);
+      const bx = Math.max(m.left + 40, Math.min(W - m.right - 40, m.left + band * bi + band / 2));
+      svg.append(svgEl("text", { x: bx, y: y(best.revenue) - 8, "text-anchor": "middle", class: "bar-label" }, `Best day: ₦${compact(best.revenue)}`));
+
+      box.prepend(svg);
+
+      $("dailyTable").innerHTML = days.slice().reverse().map((d) => `<tr><td>${esc(longDate(d.date))}</td><td>${d.orders}</td><td>${naira(Math.round(d.revenue))}</td><td>${d.orders ? naira(Math.round(d.revenue / d.orders)) : "—"}</td></tr>`).join("");
+    }
+
+    /* ---------- best-selling dishes (ranked bars) ---------- */
+    function renderTop() {
+      const box = $("topChart");
+      box.replaceChildren();
+      const top = data.top.slice(0, 10);
+      if (!top.length) {
+        box.innerHTML = `<p class="empty-chart">No dishes sold in this period.</p>`;
+        $("topTable").innerHTML = "";
+        return;
+      }
+      const W = Math.max(260, box.clientWidth);
+      const rowH = 34, barH = 20;
+      const nameW = Math.min(150, W * 0.42);
+      const valueW = 44;
+      const H = top.length * rowH + 4;
+      const iw = W - nameW - valueW - 8;
+      const max = top[0].qty;
+
+      const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Best-selling dishes by portions sold. Use the table below for every value." });
+      svg.append(svgEl("line", { x1: nameW, x2: nameW, y1: 0, y2: H, stroke: "var(--axis)", "stroke-width": 1, "shape-rendering": "crispEdges" }));
+      const tip = tooltip(box);
+
+      top.forEach((d, i) => {
+        const yTop = i * rowH + (rowH - barH) / 2;
+        const w = Math.max(2, (d.qty / max) * iw);
+        const g = svgEl("g");
+        // truncate long names to fit the label column
+        const name = svgEl("text", { x: nameW - 8, y: yTop + barH / 2 + 4, "text-anchor": "end", class: "bar-name" }, d.name);
+        g.append(name);
+        const hit = svgEl("rect", { x: 0, y: i * rowH, width: W, height: rowH, class: "hit", tabindex: 0, role: "img",
+          "aria-label": `${d.name}: ${d.qty} sold, ${naira(Math.round(d.revenue))}` });
+        g.append(hit);
+        g.append(svgEl("path", { d: barPath(nameW, yTop, w, barH), class: "mark" }));
+        g.append(svgEl("text", { x: nameW + w + 6, y: yTop + barH / 2 + 4, class: "bar-label" }, d.qty.toLocaleString()));
+        const show = () => {
+          g.classList.add("hover");
+          tip.show(Math.min(W - 80, nameW + w / 2), yTop, `${d.qty.toLocaleString()} sold · ${naira(Math.round(d.revenue))}`, d.name);
+        };
+        const hide = () => {
+          g.classList.remove("hover");
+          tip.hide();
+        };
+        hit.addEventListener("pointerenter", show);
+        hit.addEventListener("pointerleave", hide);
+        hit.addEventListener("focus", show);
+        hit.addEventListener("blur", hide);
+        svg.append(g);
+        // shorten names that would run into the axis
+        requestAnimationFrame(() => {
+          let text = d.name;
+          while (name.getComputedTextLength && name.getComputedTextLength() > nameW - 14 && text.length > 4) {
+            text = text.slice(0, -1);
+            name.textContent = text.trimEnd() + "…";
+          }
+        });
+      });
+      box.prepend(svg);
+
+      $("topTable").innerHTML = data.top.map((d) => `<tr><td>${esc(d.name)}</td><td>${d.qty.toLocaleString()}</td><td>${naira(Math.round(d.revenue))}</td></tr>`).join("");
+    }
+
+    function renderAll() {
+      if (!data) return;
+      renderTiles();
+      renderDaily();
+      renderTop();
+    }
+
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(renderAll, 150);
+    });
+
+    adminReady.then(() => setPreset(30));
+  </script>
+</body>
+
+</html>

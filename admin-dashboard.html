@@ -1,178 +1,330 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Admin Dashboard | Taste Lounge</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link
-      rel="shortcut icon"
-      href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
-      type="image/x-icon"
-    />
 
-    <style>
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: bisque;
-        color: #333;
-      }
-
-      header {
-        background: #111;
-        background: red;
-        color: #fff;
-        padding: 15px 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      header h1 {
-        font-size: 18px;
-        margin: 0;
-      }
-
-      header button {
-        background: #e53935;
-        background: #fff;
-        border: none;
-        color: black;
-        padding: 8px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-      }
-
-      main {
-        padding: 20px;
-      }
-
-      .stats {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 15px;
-      }
-
-      .card {
-        background: #fff;
-        padding: 20px;
-        border-radius: 6px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-      }
-
-      .card h3 {
-        margin: 0 0 10px;
-        font-size: 14px;
-        color: #777;
-      }
-
-      .card p {
-        font-size: 24px;
-        font-weight: bold;
-        margin: 0;
-      }
-
-      .nav {
-        margin-top: 30px;
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-
-      .nav a {
-        text-decoration: none;
-        background: red;
-        color: #fff;
-        padding: 12px 16px;
-        border-radius: 5px;
-        font-size: 14px;
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>Admin Dashboard</h1>
-      <button id="logoutBtn">Logout</button>
-    </header>
-
-    <main>
-      <section class="stats">
-        <div class="card">
-          <h3>Total Orders</h3>
-          <p id="totalOrders">—</p>
-        </div>
-
-        <div class="card">
-          <h3>Total Users</h3>
-          <p id="totalUsers">—</p>
-        </div>
-
-        <div class="card">
-          <h3>Total Revenue</h3>
-          <p id="totalRevenue">—</p>
-        </div>
-      </section>
-
-      <section class="nav">
-        <a href="admin-orders.html">Manage Orders</a>
-        <a href="admin-foods.html">Manage Foods</a>
-        <a href="admin-categories.html">Categories</a>
-        <a href="admin-extras.html">Extras</a>
-        <a href="admin-reviews.html">Reviews</a>
-        <a href="admin-website.html">Website</a>
-        <a href="admin-settings.html">Store Settings</a>
-        <a href="admin-users.html">View Users</a>
-      </section>
-    </main>
-
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-
-    <script>
-      firebase.initializeApp({
-        apiKey: "AIzaSyAW3atuDYr7OeuT2b-Tn_ooD93ZfPqMA4g",
-        authDomain: "taste-lounge-3075.firebaseapp.com",
-        projectId: "taste-lounge-3075",
-      });
-    </script>
-
-    <script src="admin-auth.js"></script>
-  </body>
-</html>
-<script>
-  const db = firebase.firestore();
-  const auth = firebase.auth();
-
-  const totalOrdersEl = document.getElementById("totalOrders");
-  const totalUsersEl = document.getElementById("totalUsers");
-  const totalRevenueEl = document.getElementById("totalRevenue");
-  const logoutBtn = document.getElementById("logoutBtn");
-
-  async function loadStats() {
-    try {
-      const ordersSnap = await db.collection("orders").get();
-      totalOrdersEl.textContent = ordersSnap.size;
-
-      let revenue = 0;
-      ordersSnap.forEach((doc) => {
-        const total = Number(doc.data()?.pricing?.total) || 0;
-        revenue += total;
-      });
-      totalRevenueEl.textContent = `₦${revenue.toLocaleString()}`;
-
-      const usersSnap = await db.collection("users").get();
-      totalUsersEl.textContent = usersSnap.size;
-    } catch (err) {
-      console.error("Dashboard error:", err);
-      alert("Failed to load dashboard data");
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard | Taste Lounge Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="shortcut icon"
+    href="https://www.summahealth.org/-/media/project/summahealth/website/page-content/flourish/2_18a_fl_fastfood_400x400.webp?la=en&h=400&w=400&hash=145DC0CF6234A159261389F18A36742A"
+    type="image/x-icon" />
+  <link rel="stylesheet" href="admin-common.css">
+  <style>
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 20px;
+      align-items: start;
     }
-  }
 
-  loadStats();
+    @media (max-width: 900px) {
+      .dash-grid {
+        grid-template-columns: 1fr;
+      }
+    }
 
-  logoutBtn.onclick = async () => {
-    await auth.signOut();
-    window.location.href = "index.html";
-  };
-</script>
+    .store-state {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .store-state .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px var(--green-soft);
+    }
+
+    .store-state.closed .dot {
+      background: var(--red);
+      box-shadow: 0 0 0 4px var(--red-soft);
+    }
+
+    .pause-box {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      background: #faf8f5;
+    }
+
+    .pause-box.on {
+      background: var(--red-soft);
+      border-color: #f5b5b2;
+    }
+
+    .pause-box b {
+      display: block;
+      font-size: 15px;
+    }
+
+    .latest li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .latest li:last-child {
+      border-bottom: 0;
+    }
+
+    .latest a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .latest small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px;
+    }
+
+    .tile {
+      display: block;
+      padding: 16px;
+      border-radius: var(--radius);
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+      transition: border-color .2s, transform .2s;
+    }
+
+    .tile:hover {
+      border-color: var(--red);
+      transform: translateY(-2px);
+    }
+
+    .tile span {
+      display: block;
+      font-weight: 400;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+
+<body data-staff>
+  <header class="topbar">
+    <h1>🍽️ Dashboard</h1>
+    <nav data-admin-nav></nav>
+  </header>
+
+  <main>
+    <p class="muted" id="hello" style="margin:0 0 16px"></p>
+
+    <section class="kpis" aria-label="Today">
+      <div class="kpi"><div class="label">Orders today</div><div class="value" id="kToday">—</div><div class="note" id="kTodayNote"></div></div>
+      <div class="kpi"><div class="label">Sales today</div><div class="value" id="kSales">—</div><div class="note">Paid orders, not cancelled</div></div>
+      <div class="kpi"><div class="label">In progress</div><div class="value" id="kActive">—</div><div class="note">Paid, processing or on the way</div></div>
+      <div class="kpi"><div class="label">Average order today</div><div class="value" id="kAvg">—</div></div>
+    </section>
+
+    <div class="dash-grid">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Taking orders</h2>
+            <p class="sub">Opening hours are set in Store Settings. Pause orders any time the kitchen is too busy.</p>
+          </div>
+        </div>
+        <div class="store-state" id="storeState"><span class="dot"></span><span id="storeStateText">Checking…</span></div>
+        <div class="pause-box" id="pauseBox">
+          <div class="switch-row">
+            <label class="switch" title="Pause orders">
+              <input type="checkbox" id="pauseToggle" aria-describedby="pauseHelp" disabled>
+              <span></span>
+            </label>
+            <div>
+              <b id="pauseTitle">Pause orders</b>
+              <div class="hint" id="pauseHelp">Customers can still browse the menu, but checkout is blocked until you switch this off.</div>
+            </div>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label for="pauseMessage">Message customers see while paused (optional)</label>
+            <input type="text" id="pauseMessage" maxlength="120" placeholder="e.g. We're very busy — back in 30 minutes!">
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Latest orders</h2>
+            <p class="sub">Updates live. <a class="inline-link" href="admin-orders.html">See all orders →</a></p>
+          </div>
+        </div>
+        <ul class="latest" id="latest" style="list-style:none;margin:0;padding:0">
+          <li class="muted">Loading…</li>
+        </ul>
+      </section>
+    </div>
+
+    <section data-admin-only>
+      <h2 style="font-size:16px;margin:8px 0 12px">All time</h2>
+      <div class="kpis">
+        <div class="kpi"><div class="label">Total orders</div><div class="value" id="totalOrders">—</div></div>
+        <div class="kpi"><div class="label">Total revenue</div><div class="value" id="totalRevenue">—</div></div>
+        <div class="kpi"><div class="label">Customers</div><div class="value" id="totalUsers">—</div></div>
+      </div>
+
+      <div class="tiles">
+        <a class="tile" href="admin-reports.html">📈 Sales charts<span>Money per day, best sellers</span></a>
+        <a class="tile" href="admin-foods.html">🍲 Foods<span>Dishes, prices, photos</span></a>
+        <a class="tile" href="admin-promos.html">🏷️ Promo codes<span>Discounts for customers</span></a>
+        <a class="tile" href="admin-settings.html">⚙️ Store Settings<span>Hours, delivery, points</span></a>
+        <a class="tile" href="admin-staff.html">👥 Staff<span>Who can manage orders</span></a>
+        <a class="tile" href="admin-website.html">🌐 Website<span>Home, about, our story</span></a>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="admin-firebase.js"></script>
+  <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="store-hours.js"></script>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const settingsRef = db.collection("settings").doc("store");
+    const counts = (o) => o.payment?.status === "success" && o.status?.current !== "cancelled";
+    const STATUS_LABEL = { paid: "Paid", processing: "Processing", out_for_delivery: "Out for delivery", delivered: "Delivered", cancelled: "Cancelled" };
+
+    adminReady.then(({ role, name }) => {
+      $("hello").textContent = `Signed in as ${name} (${role === "admin" ? "admin" : "staff"})`;
+      watchToday();
+      watchLatest();
+      watchStore();
+      if (role === "admin") loadTotals();
+    });
+
+    /* ---------- today ---------- */
+    function startOfToday() {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return firebase.firestore.Timestamp.fromDate(d);
+    }
+
+    function watchToday() {
+      db.collection("orders").where("createdAt", ">=", startOfToday()).onSnapshot((snap) => {
+        const orders = snap.docs.map((d) => d.data());
+        const paid = orders.filter(counts);
+        const sales = paid.reduce((s, o) => s + (Number(o.pricing?.total) || 0), 0);
+        $("kToday").textContent = orders.length;
+        const cancelled = orders.filter((o) => o.status?.current === "cancelled").length;
+        $("kTodayNote").textContent = cancelled ? `${cancelled} cancelled` : "";
+        $("kSales").textContent = naira(sales);
+        $("kAvg").textContent = paid.length ? naira(Math.round(sales / paid.length)) : "—";
+      }, (err) => console.error("Today's orders:", err));
+
+      db.collection("orders").where("status.current", "in", ["paid", "processing", "out_for_delivery"]).onSnapshot((snap) => {
+        $("kActive").textContent = snap.size;
+      }, (err) => console.error("Active orders:", err));
+    }
+
+    /* ---------- latest orders ---------- */
+    function watchLatest() {
+      db.collection("orders").orderBy("createdAt", "desc").limit(6).onSnapshot((snap) => {
+        if (snap.empty) {
+          $("latest").innerHTML = `<li class="muted">No orders yet.</li>`;
+          return;
+        }
+        $("latest").innerHTML = snap.docs.map((d) => {
+          const o = d.data();
+          const st = o.status?.current || "paid";
+          const when = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString(undefined, { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" }) : "just now";
+          const items = (o.items || []).reduce((n, i) => n + (Number(i.quantity ?? i.qty) || 1), 0);
+          return `<li><a href="order-details.html?id=${encodeURIComponent(d.id)}"><b>#${esc(d.id.slice(0, 4).toUpperCase())}</b> · ${esc(o.delivery?.name || "Customer")}
+              <small>${esc(when)} · ${items} item${items === 1 ? "" : "s"}</small></a>
+            <span style="text-align:right"><b>${naira(o.pricing?.total)}</b><br><span class="pill st-${esc(st)}">${esc(STATUS_LABEL[st] || st)}</span></span></li>`;
+        }).join("");
+      }, (err) => console.error("Latest orders:", err));
+    }
+
+    /* ---------- open / closed + pause ---------- */
+    let store = {};
+    function renderStore() {
+      const st = tlStoreStatus(store);
+      const hasHours = tlHasHours(store.hours);
+      $("storeState").classList.toggle("closed", !st.canOrder);
+      $("storeStateText").textContent = st.paused
+        ? "Orders are paused"
+        : !hasHours ? "Open — no opening hours set (always taking orders)"
+        : st.open ? `Open now${st.closesAt ? " · closes " + st.closesAt : ""}` : `Closed · ${st.nextOpen || "no opening hours this week"}`;
+      $("pauseToggle").checked = !!store.ordersPaused;
+      $("pauseBox").classList.toggle("on", !!store.ordersPaused);
+      $("pauseTitle").textContent = store.ordersPaused ? "Orders are paused — switch off to start taking orders again" : "Pause orders";
+      if (document.activeElement !== $("pauseMessage")) $("pauseMessage").value = store.pauseMessage || "";
+    }
+
+    function watchStore() {
+      settingsRef.onSnapshot((snap) => {
+        store = snap.exists ? snap.data() : {};
+        $("pauseToggle").disabled = false;
+        renderStore();
+      }, (err) => toast("Couldn't load the store status: " + err.message, "error"));
+      setInterval(renderStore, 60000);
+    }
+
+    $("pauseToggle").addEventListener("change", async (e) => {
+      const paused = e.target.checked;
+      e.target.disabled = true;
+      try {
+        await settingsRef.update({
+          ordersPaused: paused,
+          pauseMessage: $("pauseMessage").value.trim(),
+          pausedAt: serverTime(),
+          pausedBy: auth.currentUser.email || auth.currentUser.uid,
+        });
+        toast(paused ? "Orders paused — customers can't check out" : "You're taking orders again");
+      } catch (err) {
+        e.target.checked = !paused;
+        toast("Couldn't change it: " + err.message, "error");
+      } finally {
+        e.target.disabled = false;
+      }
+    });
+
+    $("pauseMessage").addEventListener("change", async () => {
+      try {
+        await settingsRef.update({ pauseMessage: $("pauseMessage").value.trim() });
+        toast("Pause message saved");
+      } catch (err) {
+        toast("Couldn't save the message: " + err.message, "error");
+      }
+    });
+
+    /* ---------- all-time totals (admins) ---------- */
+    async function loadTotals() {
+      try {
+        const [ordersSnap, usersSnap] = await Promise.all([db.collection("orders").get(), db.collection("users").get()]);
+        const paid = ordersSnap.docs.map((d) => d.data()).filter(counts);
+        $("totalOrders").textContent = ordersSnap.size.toLocaleString();
+        $("totalRevenue").textContent = naira(paid.reduce((s, o) => s + (Number(o.pricing?.total) || 0), 0));
+        $("totalUsers").textContent = usersSnap.size.toLocaleString();
+      } catch (err) {
+        console.error("Dashboard totals:", err);
+      }
+    }
+  </script>
+</body>
+
+</html>

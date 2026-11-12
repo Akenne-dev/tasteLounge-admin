@@ -15,16 +15,7 @@
 
   <header class="topbar">
     <h1>🍽️ Manage Foods</h1>
-    <nav>
-      <a href="admin-dashboard.html">Dashboard</a>
-      <a href="admin-foods.html" class="active">Foods</a>
-      <a href="admin-categories.html">Categories</a>
-      <a href="admin-extras.html">Extras</a>
-      <a href="admin-reviews.html">Reviews</a>
-      <a href="admin-website.html">Website</a>
-      <a href="admin-settings.html">Store Settings</a>
-      <a href="admin-orders.html">Orders</a>
-    </nav>
+    <nav data-admin-nav></nav>
   </header>
 
   <main>
@@ -62,8 +53,8 @@
           <div class="hint">Shows a crossed-out price and "Save x%" on the dish.</div>
         </div>
         <div class="field span-2">
-          <label for="imageUrl">Image URL <span class="req">*</span></label>
-          <input type="url" id="imageUrl" placeholder="https://example.com/food-image.jpg">
+          <label for="imageUrl">Photo <span class="req">*</span></label>
+          <input type="url" id="imageUrl" placeholder="Upload a photo, or paste a link: https://…" data-upload="image">
           <img id="imagePreview" class="image-preview" alt="Preview">
         </div>
         <div class="field span-2">
@@ -195,6 +186,8 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script src="admin-firebase.js"></script>
   <script src="admin-auth.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="admin-upload.js"></script>
 
   <script>
     const $ = (id) => document.getElementById(id);
@@ -447,8 +440,8 @@
       if (!data.categoryId) return "Choose a category";
       if (!(data.price > 0)) return "Enter a price greater than 0";
       if (data.oldPrice !== null && data.oldPrice <= data.price) return "Old price must be higher than the price (or leave it empty)";
-      if (!data.imageUrl) return "Paste an image URL";
-      if (!/^https?:\/\//i.test(data.imageUrl)) return "Image URL must start with http:// or https://";
+      if (!data.imageUrl) return "Add a photo — upload one or paste a link";
+      if (!/^https?:\/\//i.test(data.imageUrl)) return "The photo link must start with http:// or https://";
       if (!data.description) return "Write a short description";
       const unnamed = [...$("sizesList").querySelectorAll(".repeater-row")]
         .some((row) => !row.querySelector(".size-label").value.trim() && row.querySelector(".size-price").value);

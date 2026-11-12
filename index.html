@@ -74,10 +74,10 @@
   </head>
   <body>
     <div class="login-box">
-      <h2>Admin Login</h2>
+      <h2>Admin &amp; Staff Login</h2>
 
-      <input type="email" id="email" placeholder="Admin email" />
-      <input type="password" id="password" placeholder="Password" />
+      <input type="email" id="email" placeholder="Email" autocomplete="username" />
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" />
 
       <button id="loginBtn">Login</button>
 
@@ -105,6 +105,19 @@
   const loginBtn = document.getElementById("loginBtn");
   const errorEl = document.getElementById("error");
 
+  // Admins (admins collection) and active staff (staff collection, Admin → Staff) may log in.
+  async function hasAccess(uid) {
+    const [adminSnap, staffSnap] = await Promise.all([
+      db.collection("admins").doc(uid).get(),
+      db.collection("staff").doc(uid).get(),
+    ]);
+    return adminSnap.exists || (staffSnap.exists && staffSnap.data().active !== false);
+  }
+
+  passEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loginBtn.click();
+  });
+
   loginBtn.addEventListener("click", async () => {
     errorEl.style.display = "none";
     loginBtn.disabled = true;
@@ -122,11 +135,9 @@
       const cred = await auth.signInWithEmailAndPassword(email, password);
       const user = cred.user;
 
-      const adminSnap = await db.collection("admins").doc(user.uid).get();
-
-      if (!adminSnap.exists) {
+      if (!(await hasAccess(user.uid))) {
         await auth.signOut();
-        showError("You are not authorized as admin");
+        showError("This account doesn't have admin or staff access");
         loginBtn.disabled = false;
         return;
       }
@@ -146,10 +157,10 @@
   auth.onAuthStateChanged(async (user) => {
     if (!user) return;
 
-    const adminSnap = await db.collection("admins").doc(user.uid).get();
-
-    if (adminSnap.exists) {
-      window.location.href = "admin-dashboard.html";
+    try {
+      if (await hasAccess(user.uid)) window.location.href = "admin-dashboard.html";
+    } catch (err) {
+      console.warn("Access check failed:", err.message);
     }
   });
 </script>
